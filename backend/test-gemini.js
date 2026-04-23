@@ -1,17 +1,12 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
+import './src/bootEnv.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '.env') });
 
 const modelId = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
 
 async function testGemini() {
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
   if (!apiKey) {
-    console.error('❌ GEMINI_API_KEY is missing in backend/.env');
+    console.error('❌ GEMINI_API_KEY is missing (.env at repo root or backend/.env)');
     process.exit(1);
   }
 

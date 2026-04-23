@@ -1,14 +1,25 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { Expense } from '../models/Expense.js';
+import { Receipt } from '../models/Receipt.js';
 import {
   applyReceiptValidation,
   validateTotals,
 } from '../lib/receiptValidation.js';
 import { processTimingMiddleware } from '../middleware/processTiming.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = express.Router();
 router.use(processTimingMiddleware);
+router.use(requireAuth);
+
+function expenseFilterForUser(req, query) {
+  const base = buildExpenseFilter(query);
+  return {
+    ...base,
+    user: new mongoose.Types.ObjectId(req.auth.userId),
+  };
+}
 
 function cloneJson(value) {
   try {
@@ -131,7 +142,7 @@ function expensesToCsv(rows) {
 
 router.get('/export', async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req.query);
+    const filter = expenseFilterForUser(req, req.query);
     const rows = await Expense.find(filter)
       .sort({ createdAt: -1 })
       .limit(2000)
@@ -148,7 +159,7 @@ router.get('/export', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req.query);
+    const filter = expenseFilterForUser(req, req.query);
     const { limit, skip } = parseLimitSkip(req.query);
     const [expenses, totalCount, summary] = await Promise.all([
       Expense.find(filter)
@@ -190,8 +201,15 @@ function resolvedReviewGate(normalized) {
  * @returns {{ ok: true, value: object } | { ok: false, status: number, json: object }}
  */
 function prepareExpenseBody(body) {
-  const { rawText, originalAiData, finalData, isCorrected, status, confirmReview } =
-    body;
+  const {
+    rawText,
+    originalAiData,
+    finalData,
+    isCorrected,
+    status,
+    confirmReview,
+    receiptId,
+  } = body;
 
   if (finalData === null || typeof finalData !== 'object' || Array.isArray(finalData)) {
     return {
@@ -279,6 +297,19 @@ function prepareExpenseBody(body) {
     };
   }
 
+  let receiptObjectId = null;
+  if (receiptId !== undefined && receiptId !== null && String(receiptId).trim() !== '') {
+    const rid = String(receiptId).trim();
+    if (!mongoose.Types.ObjectId.isValid(rid)) {
+      return {
+        ok: false,
+        status: 400,
+        json: { success: false, error: 'Invalid receiptId.' },
+      };
+    }
+    receiptObjectId = new mongoose.Types.ObjectId(rid);
+  }
+
   const confidence =
     typeof normalized.confidence === 'number' && !Number.isNaN(normalized.confidence)
       ? normalized.confidence
@@ -296,6 +327,7 @@ function prepareExpenseBody(body) {
       confidenceFlag,
       isCorrected: Boolean(isCorrected),
       status: status === 'draft' ? 'draft' : 'approved',
+      receiptObjectId,
     },
   };
 }
@@ -308,7 +340,24 @@ router.post('/', async (req, res) => {
   const v = prep.value;
 
   try {
+    if (v.receiptObjectId) {
+      const pending = await Receipt.findOne({
+        _id: v.receiptObjectId,
+        user: req.auth.userId,
+        expense: null,
+      })
+        .select('_id')
+        .lean();
+      if (!pending) {
+        return res.status(400).json({
+          success: false,
+          error: 'Receipt draft not found or already linked.',
+        });
+      }
+    }
+
     const expense = await Expense.create({
+      user: req.auth.userId,
       rawText: v.rawText,
       originalAiData: v.original,
       finalData: v.normalized,
@@ -317,6 +366,13 @@ router.post('/', async (req, res) => {
       isCorrected: v.isCorrected,
       status: v.status,
     });
+
+    if (v.receiptObjectId) {
+      await Receipt.updateOne(
+        { _id: v.receiptObjectId, user: req.auth.userId },
+        { $set: { expense: expense._id } },
+      );
+    }
 
     return res.status(201).json({
       success: true,
@@ -343,8 +399,8 @@ router.patch('/:id', async (req, res) => {
   const v = prep.value;
 
   try {
-    const expense = await Expense.findByIdAndUpdate(
-      id,
+    const expense = await Expense.findOneAndUpdate(
+      { _id: id, user: req.auth.userId },
       {
         $set: {
           rawText: v.rawText,
@@ -381,7 +437,10 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    const deleted = await Expense.findByIdAndDelete(id).lean();
+    const deleted = await Expense.findOneAndDelete({
+      _id: id,
+      user: req.auth.userId,
+    }).lean();
     if (!deleted) {
       return res.status(404).json({ success: false, error: 'Expense not found.' });
     }

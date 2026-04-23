@@ -10,6 +10,18 @@ const receiptItemSchema = new mongoose.Schema(
 
 const receiptSchema = new mongoose.Schema(
   {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    /** Set when the user confirms an expense from this draft. */
+    expense: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Expense',
+      default: null,
+    },
     vendor: { type: String, default: null },
     total: { type: Number, default: null },
     currency: { type: String, default: 'USD' },
@@ -38,6 +50,7 @@ receiptSchema.set('toJSON', {
     if (ret.date instanceof Date) {
       ret.date = ret.date.toISOString().slice(0, 10);
     }
+    if (ret.expense != null) ret.expense = ret.expense.toString();
     return ret;
   },
 });
