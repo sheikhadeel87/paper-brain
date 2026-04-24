@@ -34,7 +34,7 @@ You can also compare **Duration** in the Network row (includes network + browser
 
 ## If you are over budget
 
-- **Upload:** smaller images, `GEMINI_MODEL=gemini-2.5-flash-lite` in `backend/.env`, reduce concurrent load, faster CPU for Tesseract.
+- **Upload:** smaller images, `GEMINI_MODEL=gemini-2.5-flash-lite` in project `.env` (or `backend/.env`), reduce concurrent load, faster CPU for Tesseract.
 - **Dashboard:** lower `limit` in the client query if you raise it later; add Mongo indexes on hot filter fields if the dataset grows large.
 
 ## Recording results (optional)

@@ -42,7 +42,7 @@ paper-brain/
 │   │   ├── models/            # Expense, Receipt (schema only until optional MVP step)
 │   │   ├── lib/               # shared validation
 │   │   └── middleware/        # e.g. response timing
-│   └── .env.example
+├── .env.example       # copy → `.env` at repo root (backend loads it first)
 ├── frontend/          # Vite + React SPA (`App.jsx` holds main UI)
 ├── MVP_REQUIREMENTS.md
 ├── MVP_PROGRESS.md
@@ -61,16 +61,51 @@ paper-brain/
 
 ## Configuration
 
-Copy `backend/.env.example` → `backend/.env` and set:
+Copy `.env.example` → **`.env` in the project root** (same folder as `README.md`). The API loads that file first; if it is missing, it falls back to `backend/.env`. Set:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `MONGO_URI` | Yes* | Mongo connection string. *Defaults in code if unset—see server logs. |
 | `PORT` | No | API port (default **8000**). |
+| `JWT_SECRET` | Yes in production | Signing key for auth JWTs (`openssl rand -hex 32`). |
 | `GEMINI_API_KEY` | Yes for AI parse | Gemini auth. |
 | `GEMINI_MODEL` | No | Model id (e.g. `gemini-2.5-flash`, `gemini-2.5-flash-lite` for gentler quotas). |
+| `ALLOWED_ORIGINS` | No | Comma-separated list of allowed browser origins (CORS). If unset, any origin is allowed. |
+| `NODE_ENV` | No | Set to `production` on the **API host** only; enables stricter env checks and disables demo user seeding. |
 
 Do not commit real secrets. Keep `.env` out of version control.
+
+---
+
+## Deployment (Vercel + MongoDB Atlas)
+
+This repo is a **split** setup: the **React app** can live on Vercel; the **Express API** must run on a Node host that supports long-lived processes and file uploads (e.g. [Railway](https://railway.app), [Render](https://render.com), [Fly.io](https://fly.io)). **Atlas** is used as the database for that API.
+
+### 1. MongoDB Atlas
+
+Create a cluster, a database user, and **Network Access** → allow the API host’s egress IPs (or `0.0.0.0/0` only while testing). Copy the **Drivers** connection string into `MONGO_URI` on the API host.
+
+### 2. API host (not Vercel for this template)
+
+On the service dashboard, set:
+
+- `MONGO_URI` — Atlas SRV string  
+- `JWT_SECRET` — long random string  
+- `GEMINI_API_KEY` — from Google AI Studio  
+- `NODE_ENV` — `production`  
+- `ALLOWED_ORIGINS` — your Vercel site origin(s), e.g. `https://your-app.vercel.app` (optional; recommended once stable)
+
+Start with `node src/server.js` (or `npm run dev` without `NODE_ENV=production` for smoke tests). The server **exits on boot** if `NODE_ENV=production` and any of `MONGO_URI`, `JWT_SECRET`, or `GEMINI_API_KEY` is missing.
+
+### 3. Vercel (frontend only)
+
+1. Point the Vercel project at **`frontend/`** (root directory = `frontend` in Vercel project settings).  
+2. Under **Environment variables**, add **`VITE_API_BASE_URL`** = the **public HTTPS URL** of your API (no trailing slash), e.g. `https://paper-brain-api.up.railway.app`.  
+3. Redeploy after changing env vars (Vite bakes this value at build time).
+
+Local dev stays the same: leave `VITE_API_BASE_URL` unset and use the Vite proxy (`frontend/vite.config.js` → `127.0.0.1:8000`).
+
+See **`frontend/.env.example`** for the frontend variable.
 
 ---
 
@@ -118,7 +153,7 @@ Base URL in dev (via proxy): **`/api/...`** (same origin as the Vite app).
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Liveness (not under `/api`). |
-| `POST` | `/api/receipt/upload` | Multipart field **`receipt`**: image → OCR → Gemini JSON. Does **not** create an `Expense` until the user confirms in the UI. |
+| `POST` | `/api/receipt/upload` | **Bearer auth required.** Multipart field **`receipt`**: image → OCR → Gemini JSON. Persists a **`Receipt`** draft and returns **`receiptId`** (omit on pure OCR failure). Does **not** create an `Expense` until confirm; send **`receiptId`** with `POST /api/expenses` to link. |
 | `GET` | `/api/expenses` | Paginated list; query: `limit`, `skip`, `from`, `to` (ISO dates on `createdAt`), `vendor` (substring). Returns `expenses`, `totalCount`, `summary`. |
 | `GET` | `/api/expenses/export` | CSV export (same filter query params as list). |
 | `POST` | `/api/expenses` | Create expense after review (`finalData`, `originalAiData`, `rawText`, `confirmReview` when required). |
@@ -144,6 +179,9 @@ Base URL in dev (via proxy): **`/api/...`** (same origin as the Vite app).
 | `GEMINI_API_KEY` / 429 / quota | Missing key, model quota, or wrong model; try `GEMINI_MODEL=gemini-2.5-flash-lite` and retry after cooldown. |
 | UI cannot reach API | Backend not running, wrong `PORT`, or Vite **proxy** target mismatch. |
 | Empty dashboard | Mongo empty, filters too strict, or wrong `MONGO_URI`. |
+| Worked on **local Mongo**, fails after **Atlas** `mongodb+srv://` | **Network Access** in Atlas must allow where the API runs (your home IP changes—add current IP or `0.0.0.0/0` only while testing). Wrong DB user/password in the URI. Password characters like `@ # : / ?` must be [percent-encoded](https://www.mongodb.com/docs/manual/reference/connection-string/) in the URI. Corporate VPN/DNS can block SRV lookups (`querySrv` errors). Append `?retryWrites=true&w=majority` if Atlas gave you that in the official connection string. |
+| API exits immediately on start with `[env] Production requires:` | `NODE_ENV=production` is set; add `JWT_SECRET`, `MONGO_URI`, and `GEMINI_API_KEY` on that host, or use development locally without `NODE_ENV=production`. |
+| Browser shows CORS error after deploy | Set **`ALLOWED_ORIGINS`** on the API to your real front-end origin(s) (e.g. `https://….vercel.app`). If unset, all origins are allowed—mis-typed `ALLOWED_ORIGINS` can block `http://localhost:5173`. |
 
 ---
 

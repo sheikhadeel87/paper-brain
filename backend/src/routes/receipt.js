@@ -2,14 +2,19 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
+import mongoose from 'mongoose';
 import multer from 'multer';
-import Tesseract from 'tesseract.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import sharp from 'sharp';
+import Tesseract from 'tesseract.js';
 import { applyReceiptValidation } from '../lib/receiptValidation.js';
+import { Receipt } from '../models/Receipt.js';
 import { processTimingMiddleware } from '../middleware/processTiming.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = express.Router();
 router.use(processTimingMiddleware);
+router.use(requireAuth);
 
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -69,6 +74,166 @@ async function generateContentWithRetry(model, content, maxAttempts = 4) {
   }
 }
 
+/** Every `/upload` JSON body includes stable `rawText` + `aiParseFailed` (never undefined). */
+function receiptJson(body) {
+  const rawText = typeof body.rawText === 'string' ? body.rawText : '';
+  const { rawText: _omit, ...rest } = body;
+  return {
+    ...rest,
+    rawText,
+    aiParseFailed: Boolean(body.aiParseFailed),
+  };
+}
+
+function mapAiToReceiptFields(aiData) {
+  const dateStr =
+    aiData.date === '1970-01-01' || !aiData.date ? '' : String(aiData.date).trim();
+  const date =
+    dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+      ? new Date(`${dateStr}T12:00:00.000Z`)
+      : null;
+  const items =
+    Array.isArray(aiData.items) && aiData.items.length > 0
+      ? aiData.items.map((i) => ({
+          name: typeof i?.name === 'string' ? i.name : '',
+          price:
+            i?.price === null || i?.price === undefined || Number.isNaN(Number(i.price))
+              ? null
+              : Number(i.price),
+        }))
+      : [];
+  const total =
+    aiData.total === null ||
+    aiData.total === undefined ||
+    Number.isNaN(Number(aiData.total))
+      ? null
+      : Number(aiData.total);
+  const taxRaw = aiData.tax;
+  const taxNum =
+    taxRaw === null || taxRaw === undefined || taxRaw === ''
+      ? null
+      : Number(taxRaw);
+  const conf =
+    typeof aiData.confidence === 'number' && !Number.isNaN(aiData.confidence)
+      ? aiData.confidence
+      : 0;
+  return {
+    vendor: typeof aiData.vendor === 'string' ? aiData.vendor : null,
+    total,
+    currency: typeof aiData.currency === 'string' ? aiData.currency : 'USD',
+    date,
+    tax: taxNum === null || Number.isNaN(taxNum) ? null : taxNum,
+    items,
+    confidence: conf,
+  };
+}
+
+async function createReceiptDraft(userId, { rawText, aiData, aiParseFailed, needsReview }) {
+  const base = {
+    user: new mongoose.Types.ObjectId(userId),
+    rawText: typeof rawText === 'string' ? rawText : '',
+    aiParseFailed: Boolean(aiParseFailed),
+    needsReview: Boolean(needsReview),
+    expense: null,
+  };
+  const fields =
+    aiData && typeof aiData === 'object' && !aiParseFailed
+      ? mapAiToReceiptFields(aiData)
+      : {
+          vendor: null,
+          total: null,
+          currency: 'USD',
+          date: null,
+          tax: null,
+          items: [],
+          confidence: 0,
+        };
+  const doc = await Receipt.create({ ...base, ...fields });
+  return doc._id.toString();
+}
+
+/** Temp PNG for Tesseract only; Gemini still uses the original upload path. */
+async function prepareImageForOcr(originalPath) {
+  const dir = path.dirname(originalPath);
+  const stem = path.basename(originalPath, path.extname(originalPath));
+  const outPath = path.join(dir, `${stem}-ocr.png`);
+  try {
+    await sharp(originalPath)
+      .rotate()
+      .grayscale()
+      .normalize()
+      .sharpen()
+      .threshold(150)
+      .png()
+      .toFile(outPath);
+    return { ocrPath: outPath, tempFile: outPath };
+  } catch {
+    return { ocrPath: originalPath, tempFile: null };
+  }
+}
+
+function ocrMeaningfulCharCount(s) {
+  if (typeof s !== 'string' || !s) return 0;
+  let n = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    if (/[A-Za-z0-9]/.test(s[i])) n += 1;
+  }
+  return n;
+}
+
+/** PSM 6 / 4 / 11 on one worker; pick best by mean confidence, then alphanumeric density, then length. */
+async function runReceiptOcr(ocrPath) {
+  const psms = [
+    Tesseract.PSM.SINGLE_BLOCK,
+    Tesseract.PSM.SINGLE_COLUMN,
+    Tesseract.PSM.SPARSE_TEXT,
+  ];
+  let worker = null;
+  try {
+    worker = await Tesseract.createWorker('eng', Tesseract.OEM.LSTM_ONLY, {
+      logger: () => {},
+      errorHandler: () => {},
+    });
+    const candidates = [];
+    for (const psm of psms) {
+      try {
+        const { data } = await worker.recognize(ocrPath, {
+          tessedit_pageseg_mode: psm,
+        });
+        const text = typeof data.text === 'string' ? data.text.trim() : '';
+        const confidence =
+          typeof data.confidence === 'number' && !Number.isNaN(data.confidence)
+            ? data.confidence
+            : -1;
+        candidates.push({
+          text,
+          confidence,
+          meaningful: ocrMeaningfulCharCount(text),
+        });
+      } catch {
+        /* skip this PSM */
+      }
+    }
+    if (candidates.length === 0) {
+      return { rawText: '', ocrFailed: true };
+    }
+    candidates.sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      if (b.meaningful !== a.meaningful) return b.meaningful - a.meaningful;
+      return b.text.length - a.text.length;
+    });
+    const best = candidates[0].text;
+    return {
+      rawText: typeof best === 'string' ? best : String(best ?? ''),
+      ocrFailed: false,
+    };
+  } catch {
+    return { rawText: '', ocrFailed: true };
+  } finally {
+    if (worker) await worker.terminate().catch(() => {});
+  }
+}
+
 function imageMimeType(file) {
   const { mimetype, originalname } = file;
   if (mimetype && mimetype.startsWith('image/')) return mimetype;
@@ -89,7 +254,7 @@ async function parseReceiptWithGemini(rawText, filePath, fileMeta) {
     return {
       ok: false,
       error:
-        'GEMINI_API_KEY is not set. Add it to backend/.env (see .env.example).',
+        'GEMINI_API_KEY is not set. Add it to `.env` at the project root or `backend/.env` (see `.env.example`).',
       code: 'GEMINI_NO_KEY',
       retryable: false,
     };
@@ -109,14 +274,17 @@ async function parseReceiptWithGemini(rawText, filePath, fileMeta) {
     };
   }
 
-  const prompt = `You analyze a receipt: you see the IMAGE first, then noisy OCR text below.
+  const prompt = `You analyze a receipt. Your input is (1) the receipt IMAGE and (2) OCR raw text below.
+
+PRIMARY RULE — trust the image first:
+Use the IMAGE as the primary source of truth. Use the OCR text only as a hint (e.g. hard-to-read characters). If the OCR text is wrong, contradicts the image, or invents content, ignore it and trust the IMAGE.
 
 Use the IMAGE as the source of truth for:
 - Store / vendor name and logo text
 - Table layout: each line item row and any **price column** (read actual numbers from the image)
 - Subtotals, tax, total — match printed numbers on the receipt
 
-Use OCR only to disambiguate text that is still hard to read in the image. Never invent rows or prices from OCR alone.
+Never invent rows or prices from OCR alone. Do not treat OCR as authoritative.
 
 STRICT RULES:
 - Only extract items that are clearly visible in the image.
@@ -154,7 +322,7 @@ JSON shape:
   "confidence_flag": "auto" | "review"
 }
 
-Noisy OCR (secondary):
+OCR raw text (hint only; may contain errors):
 ${JSON.stringify(rawText)}`;
 
   const imagePart = {
@@ -220,78 +388,119 @@ router.post(
     upload.single('receipt')(req, res, (err) => {
       if (err) {
         const msg = err instanceof Error ? err.message : 'Upload failed';
-        return res.status(400).json({
-          success: false,
-          error: msg,
-          code: 'INVALID_UPLOAD',
-          rawText: '',
-        });
+        return res.status(400).json(
+          receiptJson({
+            success: false,
+            error: msg,
+            code: 'INVALID_UPLOAD',
+            rawText: '',
+            aiParseFailed: true,
+          }),
+        );
       }
       if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: 'No file uploaded. Use form field name "receipt".',
-          code: 'NO_FILE',
-          rawText: '',
-        });
+        return res.status(400).json(
+          receiptJson({
+            success: false,
+            error: 'No file uploaded. Use form field name "receipt".',
+            code: 'NO_FILE',
+            rawText: '',
+            aiParseFailed: true,
+          }),
+        );
       }
       next();
     });
   },
   async (req, res) => {
     const filePath = path.resolve(req.file.path);
+    let tempFile = null;
 
     try {
+      const prep = await prepareImageForOcr(filePath);
+      const { ocrPath } = prep;
+      tempFile = prep.tempFile;
+
       let rawText = '';
-      let ocrFailed = false;
+      let ocrFailed = true;
       try {
-        const {
-          data: { text },
-        } = await Tesseract.recognize(filePath, 'eng', {
-          logger: () => {},
-          // Without this, tesseract.js can throw from the worker thread on reject → process crash
-          errorHandler: () => {},
-        });
-        rawText = typeof text === 'string' ? text.trim() : '';
+        const ocr = await runReceiptOcr(ocrPath);
+        rawText = typeof ocr.rawText === 'string' ? ocr.rawText : '';
+        ocrFailed = Boolean(ocr.ocrFailed);
       } catch {
-        ocrFailed = true;
         rawText = '';
+        ocrFailed = true;
       }
 
       const gemini = await parseReceiptWithGemini(rawText, filePath, req.file);
 
       if (!gemini.ok) {
         if (ocrFailed) {
-          return res.status(200).json({
-            success: false,
-            rawText: '',
-            aiParseFailed: true,
-            error: 'OCR failed',
-            code: 'OCR_FAILED',
-            retryable: true,
-          });
+          return res.status(200).json(
+            receiptJson({
+              success: false,
+              rawText: '',
+              aiParseFailed: true,
+              error: 'OCR failed',
+              code: 'OCR_FAILED',
+              retryable: true,
+            }),
+          );
         }
-        return res.status(200).json({
-          success: false,
+        const receiptId = await createReceiptDraft(req.auth.userId, {
           rawText,
+          aiData: null,
           aiParseFailed: true,
-          error: gemini.error,
-          code: gemini.code || 'GEMINI_FAILED',
-          retryable: gemini.retryable !== false,
           needsReview: true,
         });
+        return res.status(200).json(
+          receiptJson({
+            success: false,
+            rawText,
+            aiParseFailed: true,
+            error: typeof gemini.error === 'string' ? gemini.error : 'AI parse failed',
+            code: gemini.code || 'GEMINI_FAILED',
+            retryable: gemini.retryable !== false,
+            needsReview: true,
+            receiptId,
+          }),
+        );
       }
 
       const { aiData } = gemini;
-      return res.json({
-        success: true,
+      const receiptId = await createReceiptDraft(req.auth.userId, {
         rawText,
         aiData,
-        ocrFailed,
+        aiParseFailed: false,
         needsReview: aiData.confidence_flag === 'review',
       });
+      return res.json(
+        receiptJson({
+          success: true,
+          rawText,
+          aiParseFailed: false,
+          aiData,
+          ocrFailed,
+          needsReview: aiData.confidence_flag === 'review',
+          receiptId,
+        }),
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Receipt processing failed';
+      if (!res.headersSent) {
+        res.status(500).json(
+          receiptJson({
+            success: false,
+            rawText: '',
+            aiParseFailed: true,
+            error: message,
+            code: 'INTERNAL_ERROR',
+          }),
+        );
+      }
     } finally {
       await fsp.unlink(filePath).catch(() => {});
+      if (tempFile) await fsp.unlink(tempFile).catch(() => {});
     }
   },
 );
