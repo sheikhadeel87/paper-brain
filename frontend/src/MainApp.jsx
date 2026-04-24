@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './context/useAuth.js'
-import { apiUrl } from './lib/apiBase.js'
 import {
   aiDataToDraft,
   cloneJsonSafe,
@@ -71,6 +70,7 @@ export default function MainApp() {
   const [dashEditSaving, setDashEditSaving] = useState(false)
   const [dashEditSaveError, setDashEditSaveError] = useState('')
   const [dashDeleteBusy, setDashDeleteBusy] = useState(false)
+  const [dashExportBusy, setDashExportBusy] = useState(false)
   /** Dashboard home vs full expenses list (sidebar). */
   const [dashboardPanel, setDashboardPanel] = useState('overview')
   const [expensesPage, setExpensesPage] = useState(0)
@@ -196,11 +196,37 @@ export default function MainApp() {
     return p.toString()
   }
 
-  function dashboardExportHref() {
+  const exportDashboardCsv = useCallback(async () => {
     const q = expenseFilterParams(undefined).toString()
     const path = q ? `/api/expenses/export?${q}` : '/api/expenses/export'
-    return apiUrl(path)
-  }
+    setDashExportBusy(true)
+    try {
+      const r = await authFetch(path)
+      if (!r.ok) {
+        const ct = (r.headers.get('content-type') || '').toLowerCase()
+        let msg = `Export failed (${r.status})`
+        if (ct.includes('application/json')) {
+          const data = await r.json().catch(() => ({}))
+          if (typeof data.error === 'string') msg = data.error
+        }
+        window.alert(msg)
+        return
+      }
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'expenses.csv'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setDashExportBusy(false)
+    }
+  }, [authFetch, dashFrom, dashTo, dashVendor])
 
   const runDashboardFetch = useCallback(
     async ({ filterOverride } = {}) => {
@@ -668,7 +694,8 @@ export default function MainApp() {
       setReceiptPanel={setReceiptPanel}
       user={user}
       onLogout={logout}
-      exportHref={dashboardExportHref()}
+      onExportCsv={exportDashboardCsv}
+      exportCsvBusy={dashExportBusy}
       modal={
         <ExpenseDetailModal
           dashDetailExpense={dashDetailExpense}
@@ -722,7 +749,8 @@ export default function MainApp() {
           dashDeleteBusy={dashDeleteBusy}
           onApplyFilters={handleApplyDashboard}
           onClearFilters={handleClearDashboardFilters}
-          dashboardExportHref={dashboardExportHref}
+          onExportCsv={exportDashboardCsv}
+          exportCsvBusy={dashExportBusy}
           onViewExpense={(ex) => {
             setDashEditSaveError('')
             setDashDetailExpense(ex)

@@ -8,7 +8,11 @@ import {
   inputCls,
   labelCls,
 } from './lib/uiClasses'
-import { DONUT_COLORS, formatKpiMoney } from './lib/dashboardBits'
+import {
+  DONUT_COLORS,
+  currencyDisplayLabel,
+  formatKpiMoney,
+} from './lib/dashboardBits'
 import { formatDashAmount, needsReviewAcknowledge } from './lib/receiptDraft'
 import {
   ConfidenceMeter,
@@ -23,10 +27,11 @@ import {
 
 /** Prev/next for server-paged lists (receipts library, expenses). */
 export function PagedNav({ pageIndex, pageSize, totalCount, onPageChange }) {
-  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / pageSize))
-  if (totalPages <= 1 || typeof onPageChange !== 'function') return null
+  const n = totalCount || 0
+  if (n <= 0 || typeof onPageChange !== 'function') return null
+  const totalPages = Math.max(1, Math.ceil(n / pageSize))
   const canPrev = pageIndex > 0
-  const canNext = (pageIndex + 1) * pageSize < totalCount
+  const canNext = (pageIndex + 1) * pageSize < n
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -35,6 +40,10 @@ export function PagedNav({ pageIndex, pageSize, totalCount, onPageChange }) {
           {pageIndex + 1}
         </span>{' '}
         of {totalPages}
+        <span className="text-zinc-500 dark:text-zinc-400">
+          {' '}
+          · {pageSize} per page · {n} total
+        </span>
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -84,7 +93,8 @@ export function DashboardView({
   dashDeleteBusy,
   onApplyFilters,
   onClearFilters,
-  dashboardExportHref,
+  onExportCsv,
+  exportCsvBusy = false,
   onViewExpense,
   onEditExpense,
   onDeleteExpense,
@@ -338,7 +348,9 @@ export function DashboardView({
             </span>
           </div>
           <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {dashKpis.dominant?.cur ?? '—'}
+            {dashKpis.dominant?.cur
+              ? currencyDisplayLabel(dashKpis.dominant.cur)
+              : '—'}
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {dashKpis.dominant && dashKpis.sumTotals > 0
@@ -412,7 +424,7 @@ export function DashboardView({
                           style={{ backgroundColor: s.color }}
                           aria-hidden
                         />
-                        {s.label}
+                        {currencyDisplayLabel(s.label)}
                       </span>
                       <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
                         {formatKpiMoney(s.value, s.label)} · {pct}%
@@ -459,68 +471,79 @@ export function DashboardView({
         </>
       ) : null}
 
-      <section className={cardCls}>
-        <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          Filters
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className={labelCls}>
-            From (created)
-            <input
-              className={inputCls}
-              type="date"
-              value={dashFrom}
-              onChange={(e) => setDashFrom(e.target.value)}
-            />
-          </label>
-          <label className={labelCls}>
-            To (created)
-            <input
-              className={inputCls}
-              type="date"
-              value={dashTo}
-              onChange={(e) => setDashTo(e.target.value)}
-            />
-          </label>
-          <label className={`${labelCls} sm:col-span-2`}>
-            Vendor contains
-            <input
-              className={inputCls}
-              value={dashVendor}
-              onChange={(e) => setDashVendor(e.target.value)}
-              placeholder="e.g. Mart"
-            />
-          </label>
+      <section
+        className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        id="dash-expenses-table"
+      >
+        <div className="border-b border-zinc-200 p-4 sm:p-6 dark:border-zinc-800">
+          <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            Filters
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className={labelCls}>
+              From (created)
+              <input
+                className={inputCls}
+                type="date"
+                value={dashFrom}
+                onChange={(e) => setDashFrom(e.target.value)}
+              />
+            </label>
+            <label className={labelCls}>
+              To (created)
+              <input
+                className={inputCls}
+                type="date"
+                value={dashTo}
+                onChange={(e) => setDashTo(e.target.value)}
+              />
+            </label>
+            <label className={`${labelCls} sm:col-span-2`}>
+              Vendor contains
+              <input
+                className={inputCls}
+                value={dashVendor}
+                onChange={(e) => setDashVendor(e.target.value)}
+                placeholder="e.g. Mart"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={dashLoading}
+              onClick={onApplyFilters}
+            >
+              Apply filters
+            </button>
+            <button
+              type="button"
+              className={btnBase}
+              disabled={dashLoading}
+              onClick={onClearFilters}
+            >
+              Clear filters
+            </button>
+            <button
+              type="button"
+              className={btnBase}
+              disabled={dashLoading || exportCsvBusy}
+              onClick={() =>
+                typeof onExportCsv === 'function' ? void onExportCsv() : undefined
+              }
+            >
+              {exportCsvBusy ? 'Exporting…' : 'Export CSV'}
+            </button>
+          </div>
+          {dashError && (
+            <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+              {dashError}
+            </p>
+          )}
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            className={btnPrimary}
-            disabled={dashLoading}
-            onClick={onApplyFilters}
-          >
-            Apply filters
-          </button>
-          <button
-            type="button"
-            className={btnBase}
-            disabled={dashLoading}
-            onClick={onClearFilters}
-          >
-            Clear filters
-          </button>
-          <a className={btnBase} href={dashboardExportHref()} download>
-            Export CSV
-          </a>
-        </div>
-        {dashError && (
-          <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-            {dashError}
-          </p>
-        )}
-      </section>
 
-      <section className={cardCls} id="dash-expenses-table">
+        <div className="p-4 sm:p-6">
         {dashEditSaveError && !dashDetailExpense && (
           <p className="mb-3 text-sm font-medium text-red-600 dark:text-red-400">
             {dashEditSaveError}
@@ -646,7 +669,7 @@ export function DashboardView({
                         : '—'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                      {fd.currency || '—'}
+                      {fd.currency ? currencyDisplayLabel(fd.currency) : '—'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {created || '—'}
@@ -713,6 +736,7 @@ export function DashboardView({
             onPageChange={onExpensesPageChange}
           />
         ) : null}
+        </div>
       </section>
 
       {!isExpensesList ? (
@@ -866,7 +890,7 @@ function ReceiptHistoryTable({ recent, title, emptyHint, scrollable }) {
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-zinc-900 dark:text-zinc-100">
                       {fd.total ?? '—'}{' '}
                       <span className="text-zinc-600 dark:text-zinc-400">
-                        {fd.currency || ''}
+                        {fd.currency ? currencyDisplayLabel(fd.currency) : ''}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">

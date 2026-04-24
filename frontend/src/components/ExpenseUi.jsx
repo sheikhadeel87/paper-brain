@@ -265,7 +265,8 @@ export function AppChrome({
   setDashboardPanel,
   receiptPanel = 'scan',
   setReceiptPanel,
-  exportHref,
+  onExportCsv,
+  exportCsvBusy = false,
   children,
   modal,
   user = null,
@@ -371,13 +372,8 @@ export function AppChrome({
           className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain text-left"
           aria-label="Main"
         >
-          <button
-            type="button"
-            className={navBtn(mainTab === 'receipt' && receiptPanel === 'scan')}
-            onClick={() => pickTab('receipt', 'scan')}
-          >
-            Add expense
-          </button>
+         
+
           <button
             type="button"
             className={navBtn(
@@ -386,6 +382,14 @@ export function AppChrome({
             onClick={() => pickTab('dashboard', 'overview')}
           >
             Dashboard
+          </button>
+
+          <button
+            type="button"
+            className={navBtn(mainTab === 'receipt' && receiptPanel === 'scan')}
+            onClick={() => pickTab('receipt', 'scan')}
+          >
+            Add expense
           </button>
           <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Manage
@@ -409,14 +413,17 @@ export function AppChrome({
           {['Categories', 'Vendors'].map((l) => (
             <Fragment key={l}>{soonRow(l)}</Fragment>
           ))}
-          <a
-            href={exportHref}
-            download
-            className={`${navBtn(false)} no-underline`}
-            onClick={() => setMobileNav(false)}
+          <button
+            type="button"
+            className={navBtn(false)}
+            disabled={exportCsvBusy || typeof onExportCsv !== 'function'}
+            onClick={() => {
+              setMobileNav(false)
+              if (typeof onExportCsv === 'function') void onExportCsv()
+            }}
           >
-            Export
-          </a>
+            {exportCsvBusy ? 'Exporting…' : 'Export'}
+          </button>
           <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Insights
           </p>

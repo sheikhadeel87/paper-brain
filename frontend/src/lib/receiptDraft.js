@@ -1,10 +1,11 @@
+import { formatKpiMoney } from './dashboardBits.js'
+
+/** Formats a numeric amount with currency (symbol before amount when possible). */
 export function formatDashAmount(value, currency) {
   if (value === null || value === undefined || value === '') return '—'
   const n = Number(value)
   if (Number.isNaN(n)) return '—'
-  const cur = (currency && String(currency).trim()) || ''
-  const num = n.toFixed(2)
-  return cur ? `${num} ${cur}` : num
+  return formatKpiMoney(n, currency || 'USD')
 }
 
 export function cloneJsonSafe(value) {
