@@ -1037,8 +1037,9 @@ export function ReceiptView({
                 Receipt scan
               </h2>
               <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                Upload a receipt image (PNG or JPG). OCR + Gemini run on the
-                server; you review before anything is saved as an expense.
+                Upload a receipt image (PNG or JPG). The server uses Gemini
+                (vision) on the image; you review before anything is saved as an
+                expense.
               </p>
               <div
                 className={`rounded-xl border-2 border-dashed border-zinc-300 bg-gradient-to-b from-violet-50/60 to-zinc-50/80 transition dark:border-zinc-600 dark:from-violet-950/20 dark:to-zinc-900/40 ${
@@ -1237,8 +1238,12 @@ export function ReceiptView({
 
               <details className="mt-5 text-left text-sm text-zinc-700 dark:text-zinc-300">
                 <summary className="cursor-pointer font-medium text-zinc-800 dark:text-zinc-200">
-                  Raw OCR text
+                  Raw text
                 </summary>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  Optional Tesseract line (if enabled on the server) or a
+                  full-image transcript from Gemini.
+                </p>
                 <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">
                   {rawText || '—'}
                 </pre>
@@ -1268,7 +1273,7 @@ export function ReceiptView({
                     )}
                   </button>
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Runs OCR and AI again on the same file (no need to re-select).
+                    Runs the same scan again on the file (no need to re-select).
                   </span>
                 </div>
               )}
@@ -1697,19 +1702,18 @@ export function ExpenseDetailModal({
                         </p>
                         <p className="mt-2 leading-relaxed text-amber-950/95 dark:text-amber-100/90">
                           That JSON is only a{' '}
-                          <strong>record of the first upload</strong> (e.g. OCR
-                          could not read the image, or AI returned no structured
-                          data). You still entered or corrected vendor, lines, and
-                          totals — those are stored as the{' '}
-                          <strong>saved expense</strong>. The{' '}
-                          <strong>confidence</strong> number is our +30 / +30 /
+                          <strong>record of the first upload</strong> (e.g. the
+                          image was unreadable, or AI returned no structured data).
+                          You still entered or corrected vendor, lines, and totals
+                          — those are stored as the <strong>saved expense</strong>.
+                          The <strong>confidence</strong> number is our +30 / +30 /
                           +40 guideline score applied to that <em>saved</em> data,
                           so it can be high even when the snapshot says{' '}
                           <code className="rounded bg-amber-100/80 px-1 font-mono text-xs dark:bg-amber-900/50">
                             aiParseFailed
                           </code>
-                          . Raw OCR text is empty when nothing was extracted in
-                          that failed step.
+                          . Raw text is empty when nothing was captured in that
+                          failed step.
                         </p>
                       </div>
                     )}
@@ -1922,7 +1926,7 @@ export function ExpenseDetailModal({
 
                     <details className="group mt-5 rounded-xl border border-violet-100 bg-white open:border-violet-200 dark:border-violet-900/40 dark:bg-zinc-900/50 dark:open:border-violet-800/60">
                       <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-violet-900 marker:content-none hover:bg-violet-50/60 dark:text-violet-100 dark:hover:bg-violet-950/30 [&::-webkit-details-marker]:hidden">
-                        Raw OCR text
+                        Raw text
                       </summary>
                       <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-violet-100 bg-zinc-50/90 p-3 font-mono text-xs text-zinc-800 dark:border-violet-900/30 dark:bg-zinc-950 dark:text-zinc-200">
                         {typeof ex.rawText === 'string' && ex.rawText.trim()

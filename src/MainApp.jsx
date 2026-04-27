@@ -19,6 +19,12 @@ const RECENT_SCAN_LIMIT = 10
 const RECEIPT_PAGE_SIZE = 15
 /** Dashboard overview: recent table only. */
 const DASH_OVERVIEW_LIMIT = 10
+/**
+ * The upload request is `fetch` + `res.json()`. If the connection stalls *after* headers, `fetch` may
+ * already have resolved; `res.json()` can then hang for ever with no `finally` — the UI spins forever.
+ * A single `Promise.race` caps the *entire* operation, including the body, and we abort the signal.
+ */
+const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
 
 export default function MainApp() {
   const { authFetch, user, logout } = useAuth()
@@ -474,19 +480,36 @@ export default function MainApp() {
     setSaveError('')
     setParseError('')
     setScanRetryable(false)
-    try {
-      const fd = new FormData()
-      fd.append('receipt', file)
+    const controller = new AbortController()
+    let timeoutId
+    const fd = new FormData()
+    fd.append('receipt', file)
+
+    const uploadWithBody = (async () => {
       const res = await authFetch('/api/receipt/upload', {
         method: 'POST',
         body: fd,
+        signal: controller.signal,
       })
-      let data = {}
-      try {
-        data = await res.json()
-      } catch {
-        data = {}
-      }
+      const data = await res.json().catch(() => ({}))
+      return { res, data }
+    })()
+    // Race loser may reject (e.g. AbortError) after we already show the user the timeout; avoid noise.
+    void uploadWithBody.catch(() => {})
+
+    try {
+      const { res, data: rawData } = await Promise.race([
+        uploadWithBody,
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            controller.abort()
+            const e = new Error('timeout')
+            e.name = 'TimeoutError'
+            reject(e)
+          }, RECEIPT_UPLOAD_TIMEOUT_MS)
+        }),
+      ])
+      let data = rawData
 
       if (!res.ok) {
         setRawText(typeof data.rawText === 'string' ? data.rawText : '')
@@ -546,7 +569,15 @@ export default function MainApp() {
       setReceiptDraftId('')
       setRawText('')
       setParseOk(false)
-      setParseError(err instanceof Error ? err.message : 'Upload failed')
+      setParseError(
+        err?.name === 'TimeoutError' ||
+        err?.name === 'AbortError' ||
+        err?.message === 'timeout'
+          ? 'The scan is taking too long. Try a smaller or cropped image, check your network, and try again. If the API is on a short limit (e.g. Vercel), the host may need a longer maxDuration.'
+          : err instanceof Error
+            ? err.message
+            : 'Upload failed',
+      )
       setScanRetryable(true)
       setOriginalAiSnapshot({
         aiParseFailed: true,
@@ -560,6 +591,9 @@ export default function MainApp() {
       setNeedsReview(true)
       setPhase('review')
     } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
       setUploading(false)
     }
   }
