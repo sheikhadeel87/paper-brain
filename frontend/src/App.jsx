@@ -2,10 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import { ProtectedRoute } from './components/ProtectedRoute.jsx'
 import MainApp from './MainApp.jsx'
+import LandingPage from './pages/LandingPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 
-function HomeRedirect() {
+function HomeRoute() {
   const { token, bootstrapping } = useAuth()
   if (bootstrapping) {
     return (
@@ -14,7 +15,8 @@ function HomeRedirect() {
       </div>
     )
   }
-  return <Navigate to={token ? '/dashboard' : '/login'} replace />
+  if (token) return <Navigate to="/dashboard" replace />
+  return <LandingPage />
 }
 
 export default function App() {
@@ -30,7 +32,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<HomeRedirect />} />
+      <Route path="/" element={<HomeRoute />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -39,7 +39,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-zinc-100 px-4 py-10 dark:bg-zinc-950">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-zinc-100 px-4 py-10 dark:bg-zinc-950">
+      <Link
+        to="/"
+        className="mb-6 text-sm font-medium text-violet-600 hover:text-violet-800 dark:text-violet-400"
+      >
+        ← Back to home
+      </Link>
       <div className={`${cardCls} w-full max-w-md`}>
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
           Sign in
