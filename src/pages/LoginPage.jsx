@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
 import {
   btnBase,
@@ -15,6 +15,7 @@ const defaultPassword = import.meta.env.DEV ? 'adeel123' : ''
 export default function LoginPage() {
   const { login, token } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState(defaultEmail)
   const [password, setPassword] = useState(defaultPassword)
   const [error, setError] = useState('')
@@ -30,7 +31,9 @@ export default function LoginPage() {
     setBusy(true)
     try {
       await login(email, password)
-      navigate('/dashboard', { replace: true })
+      const from =
+        typeof location.state?.from === 'string' ? location.state.from : ''
+      navigate(from || '/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
