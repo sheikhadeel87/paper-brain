@@ -5,6 +5,7 @@ import MainApp from './MainApp.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
+import { Toaster } from 'react-hot-toast';
 
 function HomeRoute() {
   const { token, bootstrapping } = useAuth()
@@ -21,6 +22,8 @@ function HomeRoute() {
 
 export default function App() {
   return (
+    <>
+    <Toaster position="top-center" reverseOrder={false} />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -35,5 +38,6 @@ export default function App() {
       <Route path="/" element={<HomeRoute />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }

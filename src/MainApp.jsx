@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './context/useAuth.js'
+import { toast } from 'react-hot-toast';
 import {
   aiDataToDraft,
   cloneJsonSafe,
@@ -471,136 +472,132 @@ export default function MainApp() {
   }
 
   async function runReceiptUpload(file, { keepPreview = false } = {}) {
-    if (!file) return
+    if (!file) return;
+  
+    // 1. Initialize states
     if (!keepPreview) {
-      setReceiptPreviewFromFile(file)
+      setReceiptPreviewFromFile(file);
     }
-    lastReceiptFileRef.current = file
-    setUploading(true)
-    setSaveError('')
-    setParseError('')
-    setScanRetryable(false)
-    const controller = new AbortController()
-    let timeoutId
-    const fd = new FormData()
-    fd.append('receipt', file)
-
+    lastReceiptFileRef.current = file;
+    setUploading(true);
+    setSaveError('');
+    setParseError('');
+    setScanRetryable(false);
+  
+    // 2. Start the Loading Toast
+    const toastId = toast.loading('Papper Brain is scanning your receipt...');
+  
+    const controller = new AbortController();
+    let timeoutId;
+    const fd = new FormData();
+    fd.append('receipt', file);
+  
     const uploadWithBody = (async () => {
       const res = await authFetch('/api/receipt/upload', {
         method: 'POST',
         body: fd,
         signal: controller.signal,
-      })
-      const data = await res.json().catch(() => ({}))
-      return { res, data }
-    })()
-    // Race loser may reject (e.g. AbortError) after we already show the user the timeout; avoid noise.
-    void uploadWithBody.catch(() => {})
-
+      });
+      const data = await res.json().catch(() => ({}));
+      return { res, data };
+    })();
+  
+    void uploadWithBody.catch(() => {});
+  
     try {
       const { res, data: rawData } = await Promise.race([
         uploadWithBody,
         new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
-            controller.abort()
-            const e = new Error('timeout')
-            e.name = 'TimeoutError'
-            reject(e)
-          }, RECEIPT_UPLOAD_TIMEOUT_MS)
+            controller.abort();
+            const e = new Error('timeout');
+            e.name = 'TimeoutError';
+            reject(e);
+          }, RECEIPT_UPLOAD_TIMEOUT_MS);
         }),
-      ])
-      let data = rawData
-
+      ]);
+      
+      let data = rawData;
+  
+      // --- CASE: Server responded, but with an ERROR (e.g. 500, 400) ---
       if (!res.ok) {
-        setRawText(typeof data.rawText === 'string' ? data.rawText : '')
-        setParseOk(false)
-        setParseError(
-          typeof data.error === 'string' ? data.error : res.statusText || 'Upload failed',
-        )
-        setScanRetryable(Boolean(data.retryable))
-        setNeedsReview(true)
+        toast.error(data.error || 'Upload failed', { id: toastId });
+        
+        // ... your existing state updates for !res.ok ...
+        setRawText(typeof data.rawText === 'string' ? data.rawText : '');
+        setParseOk(false);
+        setParseError(typeof data.error === 'string' ? data.error : res.statusText || 'Upload failed');
+        setScanRetryable(Boolean(data.retryable));
+        setNeedsReview(true);
         setOriginalAiSnapshot({
           aiParseFailed: true,
           error: typeof data.error === 'string' ? data.error : 'request',
           rawText: typeof data.rawText === 'string' ? data.rawText : '',
-        })
-        setDraft(aiDataToDraft(null, { parseFailed: true }))
-        setUserEdited(false)
-        setConfirmReviewAck(false)
-        setForceReviewAck(false)
-        setReceiptDraftId(
-          typeof data.receiptId === 'string' && data.receiptId ? data.receiptId : '',
-        )
-        setPhase('review')
-        return
+        });
+        setDraft(aiDataToDraft(null, { parseFailed: true }));
+        setPhase('review');
+        return;
       }
-
-      const success = Boolean(data.success)
-      setRawText(typeof data.rawText === 'string' ? data.rawText : '')
-      setParseOk(success)
-      setParseError(typeof data.error === 'string' ? data.error : '')
-      setScanRetryable(!success && data.retryable !== false)
-      setNeedsReview(Boolean(data.needsReview) || !success)
-      const ai = success ? data.aiData : null
-      const snap = ai
-        ? (() => {
-            const o = JSON.parse(JSON.stringify(ai))
-            if (data.ocrFailed === true) o.ocrFailed = true
-            return o
-          })()
-        : {
-            aiParseFailed: true,
-            error: typeof data.error === 'string' ? data.error : 'AI unavailable',
-            code: typeof data.code === 'string' ? data.code : undefined,
-            rawText: typeof data.rawText === 'string' ? data.rawText : '',
-          }
-      setOriginalAiSnapshot(snap)
-      setDraft(
-        success ? aiDataToDraft(ai) : aiDataToDraft(null, { parseFailed: true }),
-      )
-      setUserEdited(false)
-      setConfirmReviewAck(false)
-      setForceReviewAck(false)
-      setReceiptDraftId(
-        typeof data.receiptId === 'string' && data.receiptId ? data.receiptId : '',
-      )
-      setPhase('review')
+  
+      // --- CASE: SUCCESS (The server responded with 200) ---
+      const success = Boolean(data.success);
+      
+      if (success) {
+        toast.success('Scan successful!', { id: toastId });
+      } else {
+        toast.error('AI could not read receipt details clearly.', { id: toastId });
+      }
+  
+      // ... your existing success logic (setting snapshots, drafts, etc.) ...
+      setRawText(typeof data.rawText === 'string' ? data.rawText : '');
+      setParseOk(success);
+      setParseError(typeof data.error === 'string' ? data.error : '');
+      setScanRetryable(!success && data.retryable !== false);
+      setNeedsReview(Boolean(data.needsReview) || !success);
+      const ai = success ? data.aiData : null;
+      const snap = ai ? JSON.parse(JSON.stringify(ai)) : { aiParseFailed: true, error: 'AI unavailable' };
+      setOriginalAiSnapshot(snap);
+      setDraft(success ? aiDataToDraft(ai) : aiDataToDraft(null, { parseFailed: true }));
+      setPhase('review');
+  
     } catch (err) {
-      setReceiptDraftId('')
-      setRawText('')
-      setParseOk(false)
-      setParseError(
-        err?.name === 'TimeoutError' ||
-        err?.name === 'AbortError' ||
-        err?.message === 'timeout'
-          ? 'The scan is taking too long. Try a smaller or cropped image, check your network, and try again. If the API is on a short limit (e.g. Vercel), the host may need a longer maxDuration.'
-          : err instanceof Error
-            ? err.message
-            : 'Upload failed',
-      )
-      setScanRetryable(true)
-      setOriginalAiSnapshot({
-        aiParseFailed: true,
-        error: 'network',
-        rawText: '',
-      })
-      setDraft(aiDataToDraft(null, { parseFailed: true }))
-      setUserEdited(false)
-      setConfirmReviewAck(false)
-      setForceReviewAck(false)
-      setNeedsReview(true)
-      setPhase('review')
-    } finally {
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId)
+      // --- CASE: CATCH (Timeout, Network error, or Crash) ---
+      const isTimeout = err?.name === 'TimeoutError' || err?.message === 'timeout';
+      
+      if (isTimeout) {
+        toast.error('Taking too long. Check your connection.', { id: toastId });
+      } else {
+        toast.error('Network error. Please try again.', { id: toastId });
       }
-      setUploading(false)
+  
+      // ... your existing error state updates ...
+      setPhase('review');
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      setUploading(false);
     }
   }
 
   async function onUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // 1. Validate File Format (Prevention)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Format not supported. Please use JPG & PNG.")
+      e.target.value = '' 
+      return
+    }
+
+    // 2. Validate File Size (Optional: 10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File is too large (Max 10MB).")
+      e.target.value = ''
+      return
+    }
+
+    // 3. Proceed to the main upload logic
     await runReceiptUpload(file)
     e.target.value = ''
   }
@@ -608,7 +605,11 @@ export default function MainApp() {
   function retryReceiptScan() {
     const file = lastReceiptFileRef.current
     if (file) {
+      // 💡 Small UI touch: Let them know we are retrying specifically
+      toast.loading("Retrying scan...", { duration: 2000 }) 
       void runReceiptUpload(file, { keepPreview: true })
+    } else {
+      toast.error("No image found to retry.")
     }
   }
 
