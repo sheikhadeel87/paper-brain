@@ -27,8 +27,14 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      {/* Must be before /:appSection so /app is not captured as segment "app". */}
+      <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/dashboard" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/add-expense" element={<Navigate to="/add-expense" replace />} />
+      <Route path="/app/expenses" element={<Navigate to="/expenses" replace />} />
+      <Route path="/app/receipts" element={<Navigate to="/receipts" replace />} />
       <Route
-        path="/dashboard"
+        path="/:appSection"
         element={
           <ProtectedRoute>
             <MainApp />

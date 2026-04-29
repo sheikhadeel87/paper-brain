@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import { toast } from 'react-hot-toast';
 import {
@@ -8,6 +9,11 @@ import {
   emptyRow,
   needsReviewAcknowledge,
 } from './lib/receiptDraft'
+import {
+  APP_PATHS,
+  parseAppSection,
+  primaryPathSegment,
+} from './lib/appRoutes.js'
 import { AppChrome } from './components/ExpenseUi'
 import {
   DashboardView,
@@ -29,9 +35,20 @@ const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
 
 export default function MainApp() {
   const { authFetch, user, logout } = useAuth()
-  const [mainTab, setMainTab] = useState('dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const appSegment = useMemo(
+    () => primaryPathSegment(location.pathname),
+    [location.pathname],
+  )
+  const parsed = useMemo(
+    () => parseAppSection(appSegment === '' ? null : appSegment),
+    [appSegment],
+  )
+
+  const [mainTab, setMainTab] = useState(() => parsed?.mainTab ?? 'dashboard')
   /** `scan` = upload flow (short recent list). `library` = full receipt list from sidebar. */
-  const [receiptPanel, setReceiptPanel] = useState('scan')
+  const [receiptPanel, setReceiptPanel] = useState(() => parsed?.receiptPanel ?? 'scan')
   const [receiptLibraryPage, setReceiptLibraryPage] = useState(0)
   const prevReceiptPanelRef = useRef(receiptPanel)
   const [phase, setPhase] = useState('upload')
@@ -79,7 +96,9 @@ export default function MainApp() {
   const [dashDeleteBusy, setDashDeleteBusy] = useState(false)
   const [dashExportBusy, setDashExportBusy] = useState(false)
   /** Dashboard home vs full expenses list (sidebar). */
-  const [dashboardPanel, setDashboardPanel] = useState('overview')
+  const [dashboardPanel, setDashboardPanel] = useState(
+    () => parsed?.dashboardPanel ?? 'overview',
+  )
   const [expensesPage, setExpensesPage] = useState(0)
   const prevDashPanelRef = useRef(dashboardPanel)
 
@@ -142,10 +161,12 @@ export default function MainApp() {
     void loadRecent()
   }, [loadRecent])
 
-  const goMainTab = useCallback((tab) => {
-    if (tab === 'receipt') setReceiptPanel('scan')
-    setMainTab(tab)
-  }, [setMainTab, setReceiptPanel])
+  useEffect(() => {
+    if (!parsed) return
+    setMainTab(parsed.mainTab)
+    setDashboardPanel(parsed.dashboardPanel)
+    setReceiptPanel(parsed.receiptPanel)
+  }, [parsed])
 
   const clearReceiptPreview = useCallback(() => {
     if (receiptBlobRef.current) {
@@ -719,14 +740,15 @@ export default function MainApp() {
     setInputKey((k) => k + 1)
   }
 
+  if (!parsed) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   return (
     <AppChrome
       mainTab={mainTab}
-      setMainTab={setMainTab}
       dashboardPanel={dashboardPanel}
-      setDashboardPanel={setDashboardPanel}
       receiptPanel={receiptPanel}
-      setReceiptPanel={setReceiptPanel}
       user={user}
       onLogout={logout}
       onExportCsv={exportDashboardCsv}
@@ -756,17 +778,17 @@ export default function MainApp() {
     >
       {mainTab === 'dashboard' && (
         <DashboardView
-          setMainTab={goMainTab}
+          onNavigateAddExpense={() => navigate(APP_PATHS.addExpense)}
           dashboardPanel={dashboardPanel}
           dashOverviewLimit={DASH_OVERVIEW_LIMIT}
           expensesPage={expensesPage}
           expensesPageSize={RECEIPT_PAGE_SIZE}
           onExpensesPageChange={setExpensesPage}
           onViewAllExpenses={() => {
-            setDashboardPanel('expenses')
+            navigate(APP_PATHS.expenses)
             setExpensesPage(0)
           }}
-          onBackToDashboard={() => setDashboardPanel('overview')}
+          onBackToDashboard={() => navigate(APP_PATHS.dashboard)}
           dashFrom={dashFrom}
           dashTo={dashTo}
           dashVendor={dashVendor}
@@ -807,7 +829,7 @@ export default function MainApp() {
           receiptLibraryPage={receiptLibraryPage}
           receiptLibraryPageSize={RECEIPT_PAGE_SIZE}
           onReceiptLibraryPageChange={setReceiptLibraryPage}
-          onGoReceiptScan={() => setReceiptPanel('scan')}
+          onGoReceiptScan={() => navigate(APP_PATHS.addExpense)}
           phase={phase}
           draft={draft}
           rawText={rawText}

@@ -68,7 +68,7 @@ export function PagedNav({ pageIndex, pageSize, totalCount, onPageChange }) {
 }
 
 export function DashboardView({
-  setMainTab,
+  onNavigateAddExpense,
   dashboardPanel = 'overview',
   dashOverviewLimit = 10,
   expensesPage = 0,
@@ -209,7 +209,9 @@ export function DashboardView({
           <button
             type="button"
             className={`${btnPrimary} w-full sm:w-auto`}
-            onClick={() => setMainTab('receipt')}
+            onClick={() =>
+              typeof onNavigateAddExpense === 'function' && onNavigateAddExpense()
+            }
           >
             + Add expense
           </button>

@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { APP_PATHS } from '../lib/appRoutes.js'
 import { BrandMark } from './BrandMark.jsx'
 
 export function EyeViewIcon() {
@@ -234,11 +236,8 @@ function CloseMenuIcon() {
 
 export function AppChrome({
   mainTab,
-  setMainTab,
   dashboardPanel = 'overview',
-  setDashboardPanel,
   receiptPanel = 'scan',
-  setReceiptPanel,
   onExportCsv,
   exportCsvBusy = false,
   children,
@@ -246,6 +245,7 @@ export function AppChrome({
   user = null,
   onLogout,
 }) {
+  const navigate = useNavigate()
   const [mobileNav, setMobileNav] = useState(false)
 
   useEffect(() => {
@@ -267,17 +267,13 @@ export function AppChrome({
   }, [])
 
   function pickTab(tab, subMode) {
-    setMainTab(tab)
-    if (tab === 'receipt' && typeof setReceiptPanel === 'function') {
-      if (subMode === 'scan' || subMode === 'library') {
-        setReceiptPanel(subMode)
-      }
-    }
-    if (tab === 'dashboard' && typeof setDashboardPanel === 'function') {
-      if (subMode === 'overview' || subMode === 'expenses') {
-        setDashboardPanel(subMode)
-      }
-    }
+    if (tab === 'dashboard' && subMode === 'overview') navigate(APP_PATHS.dashboard)
+    else if (tab === 'dashboard' && subMode === 'expenses')
+      navigate(APP_PATHS.expenses)
+    else if (tab === 'receipt' && subMode === 'scan')
+      navigate(APP_PATHS.addExpense)
+    else if (tab === 'receipt' && subMode === 'library')
+      navigate(APP_PATHS.receipts)
     setMobileNav(false)
   }
 
