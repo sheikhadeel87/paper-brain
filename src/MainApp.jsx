@@ -22,8 +22,8 @@ import {
 } from './AppViews'
 
 const RECENT_SCAN_LIMIT = 10
-/** Receipts library & Expenses list: items per page (server `limit` / `skip`). */
-const RECEIPT_PAGE_SIZE = 15
+/** Dashboard “All expenses” + Receipts “All receipts”: `limit` / `skip` choices. */
+const LIST_PAGE_SIZE_OPTIONS = [15, 25, 50]
 /** Dashboard overview: recent table only. */
 const DASH_OVERVIEW_LIMIT = 10
 /**
@@ -50,6 +50,9 @@ export default function MainApp() {
   /** `scan` = upload flow (short recent list). `library` = full receipt list from sidebar. */
   const [receiptPanel, setReceiptPanel] = useState(() => parsed?.receiptPanel ?? 'scan')
   const [receiptLibraryPage, setReceiptLibraryPage] = useState(0)
+  const [receiptLibraryPageSize, setReceiptLibraryPageSize] = useState(
+    LIST_PAGE_SIZE_OPTIONS[0],
+  )
   const prevReceiptPanelRef = useRef(receiptPanel)
   const [phase, setPhase] = useState('upload')
   const [rawText, setRawText] = useState('')
@@ -61,7 +64,6 @@ export default function MainApp() {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [lastSavedId, setLastSavedId] = useState('')
   const [userEdited, setUserEdited] = useState(false)
   const [recent, setRecent] = useState([])
   const [recentTotalCount, setRecentTotalCount] = useState(0)
@@ -82,6 +84,8 @@ export default function MainApp() {
   const [dashFrom, setDashFrom] = useState('')
   const [dashTo, setDashTo] = useState('')
   const [dashVendor, setDashVendor] = useState('')
+  /** '' = all, `auto` | `review` match Expense.confidenceFlag */
+  const [dashConfidenceFlag, setDashConfidenceFlag] = useState('')
   const [dashRows, setDashRows] = useState([])
   const [dashTotalCount, setDashTotalCount] = useState(0)
   const [dashSummary, setDashSummary] = useState(null)
@@ -100,6 +104,9 @@ export default function MainApp() {
     () => parsed?.dashboardPanel ?? 'overview',
   )
   const [expensesPage, setExpensesPage] = useState(0)
+  const [expensesPageSize, setExpensesPageSize] = useState(
+    LIST_PAGE_SIZE_OPTIONS[0],
+  )
   const prevDashPanelRef = useRef(dashboardPanel)
 
   useEffect(() => {
@@ -120,8 +127,8 @@ export default function MainApp() {
 
   const loadRecent = useCallback(async () => {
     const isLibrary = mainTab === 'receipt' && receiptPanel === 'library'
-    const limit = isLibrary ? RECEIPT_PAGE_SIZE : RECENT_SCAN_LIMIT
-    const skip = isLibrary ? receiptLibraryPage * RECEIPT_PAGE_SIZE : 0
+    const limit = isLibrary ? receiptLibraryPageSize : RECENT_SCAN_LIMIT
+    const skip = isLibrary ? receiptLibraryPage * receiptLibraryPageSize : 0
     setRecentFetchError('')
     try {
       const r = await authFetch(`/api/expenses?limit=${limit}&skip=${skip}`)
@@ -155,7 +162,7 @@ export default function MainApp() {
         e instanceof Error ? e.message : 'Network error loading expenses.',
       )
     }
-  }, [authFetch, mainTab, receiptPanel, receiptLibraryPage])
+  }, [authFetch, mainTab, receiptPanel, receiptLibraryPage, receiptLibraryPageSize])
 
   useEffect(() => {
     void loadRecent()
@@ -210,10 +217,17 @@ export default function MainApp() {
       override && typeof override.vendor === 'string'
         ? override.vendor
         : dashVendor
+    const confidenceFlag =
+      override && typeof override.confidenceFlag === 'string'
+        ? override.confidenceFlag
+        : dashConfidenceFlag
     const p = new URLSearchParams()
     if (from.trim()) p.set('from', from.trim())
     if (to.trim()) p.set('to', to.trim())
     if (vendor.trim()) p.set('vendor', vendor.trim())
+    if (confidenceFlag === 'auto' || confidenceFlag === 'review') {
+      p.set('confidenceFlag', confidenceFlag)
+    }
     return p
   }
 
@@ -254,13 +268,13 @@ export default function MainApp() {
     } finally {
       setDashExportBusy(false)
     }
-  }, [authFetch, dashFrom, dashTo, dashVendor])
+  }, [authFetch, dashFrom, dashTo, dashVendor, dashConfidenceFlag])
 
   const runDashboardFetch = useCallback(
     async ({ filterOverride } = {}) => {
       const isList = dashboardPanel === 'expenses'
-      const limit = isList ? RECEIPT_PAGE_SIZE : DASH_OVERVIEW_LIMIT
-      const skip = isList ? expensesPage * RECEIPT_PAGE_SIZE : 0
+      const limit = isList ? expensesPageSize : DASH_OVERVIEW_LIMIT
+      const skip = isList ? expensesPage * expensesPageSize : 0
       setDashLoading(true)
       setDashError('')
       try {
@@ -296,9 +310,11 @@ export default function MainApp() {
       authFetch,
       dashboardPanel,
       expensesPage,
+      expensesPageSize,
       dashFrom,
       dashTo,
       dashVendor,
+      dashConfidenceFlag,
     ],
   )
 
@@ -306,6 +322,18 @@ export default function MainApp() {
     if (mainTab !== 'dashboard') return
     void runDashboardFetch()
   }, [mainTab, dashboardPanel, expensesPage, runDashboardFetch])
+
+  const handleExpensesPageSizeChange = useCallback((size) => {
+    if (!LIST_PAGE_SIZE_OPTIONS.includes(size)) return
+    setExpensesPage(0)
+    setExpensesPageSize(size)
+  }, [])
+
+  const handleReceiptLibraryPageSizeChange = useCallback((size) => {
+    if (!LIST_PAGE_SIZE_OPTIONS.includes(size)) return
+    setReceiptLibraryPage(0)
+    setReceiptLibraryPageSize(size)
+  }, [])
 
   function handleApplyDashboard() {
     setExpensesPage(0)
@@ -316,9 +344,10 @@ export default function MainApp() {
     setDashFrom('')
     setDashTo('')
     setDashVendor('')
+    setDashConfidenceFlag('')
     setExpensesPage(0)
     void runDashboardFetch({
-      filterOverride: { from: '', to: '', vendor: '' },
+      filterOverride: { from: '', to: '', vendor: '', confidenceFlag: '' },
     })
   }
 
@@ -504,10 +533,7 @@ export default function MainApp() {
     setSaveError('');
     setParseError('');
     setScanRetryable(false);
-  
-    // 2. Start the Loading Toast
-    const toastId = toast.loading('Papper Brain is scanning your receipt...');
-  
+
     const controller = new AbortController();
     let timeoutId;
     const fd = new FormData();
@@ -542,7 +568,7 @@ export default function MainApp() {
   
       // --- CASE: Server responded, but with an ERROR (e.g. 500, 400) ---
       if (!res.ok) {
-        toast.error(data.error || 'Upload failed', { id: toastId });
+        toast.error(data.error || 'Upload failed');
         
         // ... your existing state updates for !res.ok ...
         setRawText(typeof data.rawText === 'string' ? data.rawText : '');
@@ -563,10 +589,8 @@ export default function MainApp() {
       // --- CASE: SUCCESS (The server responded with 200) ---
       const success = Boolean(data.success);
       
-      if (success) {
-        toast.success('Scan successful!', { id: toastId });
-      } else {
-        toast.error('AI could not read receipt details clearly.', { id: toastId });
+      if (!success) {
+        toast.error('AI could not read receipt details clearly.');
       }
   
       // ... your existing success logic (setting snapshots, drafts, etc.) ...
@@ -586,9 +610,9 @@ export default function MainApp() {
       const isTimeout = err?.name === 'TimeoutError' || err?.message === 'timeout';
       
       if (isTimeout) {
-        toast.error('Taking too long. Check your connection.', { id: toastId });
+        toast.error('Taking too long. Check your connection.');
       } else {
-        toast.error('Network error. Please try again.', { id: toastId });
+        toast.error('Network error. Please try again.');
       }
   
       // ... your existing error state updates ...
@@ -606,7 +630,7 @@ export default function MainApp() {
     // 1. Validate File Format (Prevention)
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Format not supported. Please use JPG & PNG.")
+      toast.error('Format not supported. Please use JPEG, PNG, or WebP.')
       e.target.value = '' 
       return
     }
@@ -626,8 +650,6 @@ export default function MainApp() {
   function retryReceiptScan() {
     const file = lastReceiptFileRef.current
     if (file) {
-      // 💡 Small UI touch: Let them know we are retrying specifically
-      toast.loading("Retrying scan...", { duration: 2000 }) 
       void runReceiptUpload(file, { keepPreview: true })
     } else {
       toast.error("No image found to retry.")
@@ -708,7 +730,6 @@ export default function MainApp() {
         setSaveError(msg)
         return
       }
-      setLastSavedId(String(data.id))
       setConfirmReviewAck(false)
       setForceReviewAck(false)
       setReceiptDraftId('')
@@ -732,7 +753,6 @@ export default function MainApp() {
     setParseError('')
     setOriginalAiSnapshot(null)
     setSaveError('')
-    setLastSavedId('')
     setUserEdited(false)
     setConfirmReviewAck(false)
     setForceReviewAck(false)
@@ -751,8 +771,6 @@ export default function MainApp() {
       receiptPanel={receiptPanel}
       user={user}
       onLogout={logout}
-      onExportCsv={exportDashboardCsv}
-      exportCsvBusy={dashExportBusy}
       modal={
         <ExpenseDetailModal
           dashDetailExpense={dashDetailExpense}
@@ -782,8 +800,10 @@ export default function MainApp() {
           dashboardPanel={dashboardPanel}
           dashOverviewLimit={DASH_OVERVIEW_LIMIT}
           expensesPage={expensesPage}
-          expensesPageSize={RECEIPT_PAGE_SIZE}
+          expensesPageSize={expensesPageSize}
+          expensesPageSizeOptions={LIST_PAGE_SIZE_OPTIONS}
           onExpensesPageChange={setExpensesPage}
+          onExpensesPageSizeChange={handleExpensesPageSizeChange}
           onViewAllExpenses={() => {
             navigate(APP_PATHS.expenses)
             setExpensesPage(0)
@@ -792,9 +812,11 @@ export default function MainApp() {
           dashFrom={dashFrom}
           dashTo={dashTo}
           dashVendor={dashVendor}
+          dashConfidenceFlag={dashConfidenceFlag}
           setDashFrom={setDashFrom}
           setDashTo={setDashTo}
           setDashVendor={setDashVendor}
+          setDashConfidenceFlag={setDashConfidenceFlag}
           dashRows={dashRows}
           dashTotalCount={dashTotalCount}
           dashSummary={dashSummary}
@@ -827,8 +849,10 @@ export default function MainApp() {
           receiptPanel={receiptPanel}
           recentTotalCount={recentTotalCount}
           receiptLibraryPage={receiptLibraryPage}
-          receiptLibraryPageSize={RECEIPT_PAGE_SIZE}
+          receiptLibraryPageSize={receiptLibraryPageSize}
+          receiptLibraryPageSizeOptions={LIST_PAGE_SIZE_OPTIONS}
           onReceiptLibraryPageChange={setReceiptLibraryPage}
+          onReceiptLibraryPageSizeChange={handleReceiptLibraryPageSizeChange}
           onGoReceiptScan={() => navigate(APP_PATHS.addExpense)}
           phase={phase}
           draft={draft}
@@ -839,7 +863,6 @@ export default function MainApp() {
           uploading={uploading}
           saving={saving}
           saveError={saveError}
-          lastSavedId={lastSavedId}
           recent={recent}
           recentFetchError={recentFetchError}
           inputKey={inputKey}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_PATHS } from '../lib/appRoutes.js'
 import { BrandMark } from './BrandMark.jsx'
@@ -185,21 +185,6 @@ function navBtn(active) {
     : 'w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/80'
 }
 
-function soonRow(label) {
-  return (
-    <button
-      type="button"
-      disabled
-      className="flex w-full cursor-not-allowed items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-400 dark:text-zinc-600"
-    >
-      {label}
-      <span className="rounded-full bg-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-        Soon
-      </span>
-    </button>
-  )
-}
-
 function MenuIcon() {
   return (
     <svg
@@ -238,8 +223,6 @@ export function AppChrome({
   mainTab,
   dashboardPanel = 'overview',
   receiptPanel = 'scan',
-  onExportCsv,
-  exportCsvBusy = false,
   children,
   modal,
   user = null,
@@ -325,7 +308,7 @@ export function AppChrome({
                 Paper Brain
               </div>
               <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                Expenses
+                 Expenses
               </div>
             </div>
           </div>
@@ -380,32 +363,6 @@ export function AppChrome({
           >
             Receipts
           </button>
-          {['Categories', 'Vendors'].map((l) => (
-            <Fragment key={l}>{soonRow(l)}</Fragment>
-          ))}
-          <button
-            type="button"
-            className={navBtn(false)}
-            disabled={exportCsvBusy || typeof onExportCsv !== 'function'}
-            onClick={() => {
-              setMobileNav(false)
-              if (typeof onExportCsv === 'function') void onExportCsv()
-            }}
-          >
-            {exportCsvBusy ? 'Exporting…' : 'Export'}
-          </button>
-          <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Insights
-          </p>
-          {['Reports', 'Analytics'].map((l) => (
-            <Fragment key={l}>{soonRow(l)}</Fragment>
-          ))}
-          <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Settings
-          </p>
-          {['Settings', 'Billing'].map((l) => (
-            <Fragment key={l}>{soonRow(l)}</Fragment>
-          ))}
         </nav>
         <div className="mt-auto space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
           <div className="flex items-center gap-2 px-1 pb-1">

@@ -16,7 +16,12 @@ export function cloneJsonSafe(value) {
   }
 }
 
-export const emptyRow = () => ({ name: '', price: '' })
+export const emptyRow = () => ({
+  name: '',
+  qty: '',
+  unitPrice: '',
+  price: '',
+})
 
 export function aiDataToDraft(aiData, options = {}) {
   const parseFailed = options.parseFailed === true
@@ -41,6 +46,16 @@ export function aiDataToDraft(aiData, options = {}) {
     Array.isArray(aiData.items) && aiData.items.length > 0
       ? aiData.items.map((i) => ({
           name: typeof i?.name === 'string' ? i.name : '',
+          qty:
+            i?.qty === null || i?.qty === undefined || i?.qty === ''
+              ? ''
+              : String(i.qty),
+          unitPrice:
+            i?.unitPrice === null ||
+            i?.unitPrice === undefined ||
+            i?.unitPrice === ''
+              ? ''
+              : String(i.unitPrice),
           price:
             i?.price === null || i?.price === undefined || i?.price === ''
               ? ''
@@ -104,12 +119,24 @@ export function draftToFinalData(draft, opts = {}) {
     tax:
       taxRaw === '' || (taxNum !== null && Number.isNaN(taxNum)) ? null : taxNum,
     items: draft.items
-      .filter((row) => row.name.trim() !== '' || row.price.trim() !== '')
+      .filter(
+        (row) =>
+          row.name.trim() !== '' ||
+          row.price.trim() !== '' ||
+          String(row.qty ?? '').trim() !== '' ||
+          String(row.unitPrice ?? '').trim() !== '',
+      )
       .map((row) => {
         const p = row.price.trim()
+        const qRaw = row.qty != null ? String(row.qty).trim() : ''
+        const uRaw = row.unitPrice != null ? String(row.unitPrice).trim() : ''
+        const qNum = qRaw === '' ? null : Number(qRaw)
+        const uNum = uRaw === '' ? null : Number(uRaw)
         return {
           name: row.name.trim(),
           price: p === '' ? null : Number(p),
+          qty: qRaw === '' || Number.isNaN(qNum) ? null : qNum,
+          unitPrice: uRaw === '' || Number.isNaN(uNum) ? null : uNum,
         }
       }),
     confidence,

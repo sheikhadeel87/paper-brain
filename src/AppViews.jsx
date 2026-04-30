@@ -25,26 +25,61 @@ import {
   VendorAvatar,
 } from './components/ExpenseUi'
 
+/** Dashboard KPI card + donut: avoid overflow when many currencies exist. */
+const DASH_CURRENCY_CARD_LIMIT = 3
+
 /** Prev/next for server-paged lists (receipts library, expenses). */
-export function PagedNav({ pageIndex, pageSize, totalCount, onPageChange }) {
+export function PagedNav({
+  pageIndex,
+  pageSize,
+  totalCount,
+  onPageChange,
+  pageSizeOptions,
+  onPageSizeChange,
+}) {
   const n = totalCount || 0
   if (n <= 0 || typeof onPageChange !== 'function') return null
   const totalPages = Math.max(1, Math.ceil(n / pageSize))
   const canPrev = pageIndex > 0
   const canNext = (pageIndex + 1) * pageSize < n
+  const showPageSize =
+    Array.isArray(pageSizeOptions) &&
+    pageSizeOptions.length > 1 &&
+    typeof onPageSizeChange === 'function'
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Page{' '}
-        <span className="font-medium text-zinc-900 dark:text-zinc-100">
-          {pageIndex + 1}
-        </span>{' '}
-        of {totalPages}
-        <span className="text-zinc-500 dark:text-zinc-400">
-          {' '}
-          · {pageSize} per page · {n} total
-        </span>
-      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Page{' '}
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+            {pageIndex + 1}
+          </span>{' '}
+          of {totalPages}
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {' '}
+            · {pageSize} per page · {n} total
+          </span>
+        </p>
+        {showPageSize ? (
+          <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="whitespace-nowrap">Rows per page</span>
+            <select
+              className={`${inputCls} max-w-[11rem] py-1.5 pr-8`}
+              value={pageSize}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                if (!Number.isNaN(v)) onPageSizeChange(v)
+              }}
+            >
+              {pageSizeOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -73,15 +108,19 @@ export function DashboardView({
   dashOverviewLimit = 10,
   expensesPage = 0,
   expensesPageSize = 15,
+  expensesPageSizeOptions,
   onExpensesPageChange,
+  onExpensesPageSizeChange,
   onViewAllExpenses,
   onBackToDashboard,
   dashFrom,
   dashTo,
   dashVendor,
+  dashConfidenceFlag = '',
   setDashFrom,
   setDashTo,
   setDashVendor,
+  setDashConfidenceFlag,
   dashRows,
   dashTotalCount,
   dashSummary,
@@ -155,9 +194,44 @@ export function DashboardView({
       ).toLowerCase()
       if (f !== 'auto') reviewInList += 1
     }
-    const totalsByCurrency = [...entries]
+    const totalsByCurrencyAll = [...entries]
       .filter((e) => e.total > 0)
       .sort((a, b) => b.total - a.total)
+
+    const rowsByRecency = [...dashRows].sort((a, b) => {
+      const ta = new Date(a.createdAt || 0).getTime()
+      const tb = new Date(b.createdAt || 0).getTime()
+      return tb - ta
+    })
+    const recentCurrencyOrder = []
+    const seenRecent = new Set()
+    for (const ex of rowsByRecency) {
+      const c = String((ex.finalData || {}).currency || '').trim()
+      if (!c || seenRecent.has(c)) continue
+      seenRecent.add(c)
+      recentCurrencyOrder.push(c)
+      if (recentCurrencyOrder.length >= DASH_CURRENCY_CARD_LIMIT) break
+    }
+
+    const byCur = new Map(totalsByCurrencyAll.map((e) => [e.cur, e]))
+    const totalsByCurrency = []
+    const usedCur = new Set()
+    for (const cur of recentCurrencyOrder) {
+      const e = byCur.get(cur)
+      if (e) {
+        totalsByCurrency.push(e)
+        usedCur.add(cur)
+      }
+    }
+    for (const e of totalsByCurrencyAll) {
+      if (totalsByCurrency.length >= DASH_CURRENCY_CARD_LIMIT) break
+      if (!usedCur.has(e.cur)) {
+        totalsByCurrency.push(e)
+        usedCur.add(e.cur)
+      }
+    }
+
+    const sumTotalsShown = totalsByCurrency.reduce((a, e) => a + e.total, 0)
     const donutSlices = totalsByCurrency.map((e, i) => ({
       label: e.cur,
       value: e.total,
@@ -173,8 +247,11 @@ export function DashboardView({
       autoInList: dashRows.length - reviewInList,
       donutSlices,
       sumTotals,
-      /** Sorted positive totals — use for KPI, not `dominant` alone. */
+      /** Same currencies shown in KPI card + donut (capped). */
       totalsByCurrency,
+      /** All positive totals (for counts / “N total currencies”). */
+      totalsByCurrencyAll,
+      sumTotalsShown,
     }
   }, [dashSummary, dashRows])
 
@@ -188,7 +265,7 @@ export function DashboardView({
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
-            {isExpensesList ? 'Expenses' : 'Dashboard'}
+            {isExpensesList ? 'All Expenses' : 'Dashboard'}
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             {isExpensesList
@@ -224,7 +301,7 @@ export function DashboardView({
         <div className={`${cardCls} flex flex-col gap-2`}>
           <div className="flex items-start justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              {dashKpis.totalsByCurrency.length > 1
+              {dashKpis.totalsByCurrencyAll.length > 1
                 ? 'Totals by currency'
                 : 'Total expenses'}
             </p>
@@ -245,30 +322,25 @@ export function DashboardView({
           </div>
           <div
             className={
-              dashKpis.totalsByCurrency.length > 1
+              dashKpis.totalsByCurrencyAll.length > 1
                 ? 'min-h-0 text-zinc-900 dark:text-zinc-50'
                 : 'text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50'
             }
           >
-            {dashKpis.totalsByCurrency.length === 0 ? (
+            {dashKpis.totalsByCurrencyAll.length === 0 ? (
               <span className="text-2xl font-semibold">—</span>
-            ) : dashKpis.totalsByCurrency.length === 1 ? (
+            ) : dashKpis.totalsByCurrencyAll.length === 1 ? (
               <span className="text-2xl font-semibold tabular-nums">
                 {formatKpiMoney(
-                  dashKpis.totalsByCurrency[0].total,
-                  dashKpis.totalsByCurrency[0].cur,
+                  dashKpis.totalsByCurrencyAll[0].total,
+                  dashKpis.totalsByCurrencyAll[0].cur,
                 )}
               </span>
             ) : (
               <div
-                className={`-mr-0.5 max-h-[6.75rem] space-y-1 overflow-y-auto overscroll-y-contain pr-0.5 [-webkit-overflow-scrolling:touch] sm:max-h-[8.25rem] ${
-                  dashKpis.totalsByCurrency.length > 5
-                    ? 'text-sm font-semibold tabular-nums leading-snug sm:text-base'
-                    : 'text-lg font-semibold tabular-nums leading-snug sm:text-xl'
-                }`}
+                className="space-y-1 text-lg font-semibold tabular-nums leading-snug sm:text-xl"
                 role="region"
-                aria-label="Expense totals by currency"
-                tabIndex={0}
+                aria-label="Expense totals by currency (up to three shown)"
               >
                 {dashKpis.totalsByCurrency.map((e) => (
                   <div key={e.cur}>{formatKpiMoney(e.total, e.cur)}</div>
@@ -277,25 +349,29 @@ export function DashboardView({
             )}
           </div>
           <p className="text-xs text-emerald-700 dark:text-emerald-400/90">
-            {dashKpis.totalsByCurrency.length > 1 ? (
+            {dashKpis.totalsByCurrencyAll.length > 1 ? (
               <>
-                {dashKpis.totalsByCurrency.length} currencies — each in its own
-                currency (no FX conversion).
-                {dashKpis.totalsByCurrency.length > 5 ? (
+                {dashKpis.totalsByCurrencyAll.length >
+                DASH_CURRENCY_CARD_LIMIT ? (
                   <>
-                    {' '}
-                    <span className="text-zinc-600 dark:text-zinc-400">
-                      Scroll the amounts in the card if needed, or use the{' '}
-                      <a
-                        href="#dash-spending-overview"
-                        className="font-medium text-violet-700 underline decoration-violet-400/50 underline-offset-2 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300"
-                      >
-                        spending chart
-                      </a>{' '}
-                      below.
-                    </span>
+                    Showing {dashKpis.totalsByCurrency.length} of{' '}
+                    {dashKpis.totalsByCurrencyAll.length} currencies (latest
+                    expenses first, then largest totals). No FX conversion. See
+                    the{' '}
+                    <a
+                      href="#dash-spending-overview"
+                      className="font-medium text-violet-700 underline decoration-violet-400/50 underline-offset-2 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300"
+                    >
+                      spending chart
+                    </a>{' '}
+                    for the same slice.
                   </>
-                ) : null}
+                ) : (
+                  <>
+                    {dashKpis.totalsByCurrencyAll.length} currencies — each in
+                    its own currency (no FX conversion).
+                  </>
+                )}
               </>
             ) : (
               'Matching your filters'
@@ -412,8 +488,8 @@ export function DashboardView({
               ) : (
                 dashKpis.donutSlices.map((s) => {
                   const pct =
-                    dashKpis.sumTotals > 0
-                      ? Math.round((s.value / dashKpis.sumTotals) * 100)
+                    dashKpis.sumTotalsShown > 0
+                      ? Math.round((s.value / dashKpis.sumTotalsShown) * 100)
                       : 0
                   return (
                     <li
@@ -481,7 +557,7 @@ export function DashboardView({
           <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
             Filters
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <label className={labelCls}>
               From (created)
               <input
@@ -500,7 +576,7 @@ export function DashboardView({
                 onChange={(e) => setDashTo(e.target.value)}
               />
             </label>
-            <label className={`${labelCls} sm:col-span-2`}>
+            <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
               Vendor contains
               <input
                 className={inputCls}
@@ -508,6 +584,18 @@ export function DashboardView({
                 onChange={(e) => setDashVendor(e.target.value)}
                 placeholder="e.g. Mart"
               />
+            </label>
+            <label className={labelCls}>
+              Flag
+              <select
+                className={inputCls}
+                value={dashConfidenceFlag}
+                onChange={(e) => setDashConfidenceFlag(e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="auto">Auto</option>
+                <option value="review">Review</option>
+              </select>
             </label>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -551,24 +639,28 @@ export function DashboardView({
             {dashEditSaveError}
           </p>
         )}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {isExpensesList ? 'All expenses' : 'Recent expenses'}
-          </h2>
+        <div
+          className={`mb-3 flex flex-wrap items-center gap-2 ${isExpensesList ? 'justify-end' : 'justify-between'}`}
+        >
+          {!isExpensesList ? (
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              Recent expenses
+            </h2>
+          ) : null}
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-zinc-500 dark:text-zinc-400">
               {isExpensesList && dashTotalCount > 0
                 ? `Rows ${expensesRangeFrom}–${expensesRangeTo} of ${dashTotalCount}.`
                 : `Showing ${dashRows.length} of ${dashTotalCount}`}
             </span>
-            {isOverview ? (
+            {/* {isOverview ? (
               <a
                 href="#dash-expenses-table"
                 className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400"
               >
                 View table
               </a>
-            ) : null}
+            ) : null} */}
           </div>
         </div>
         <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -736,6 +828,8 @@ export function DashboardView({
             pageSize={expensesPageSize}
             totalCount={dashTotalCount}
             onPageChange={onExpensesPageChange}
+            pageSizeOptions={expensesPageSizeOptions}
+            onPageSizeChange={onExpensesPageSizeChange}
           />
         ) : null}
         </div>
@@ -755,19 +849,14 @@ export function DashboardView({
           <strong className="font-medium text-zinc-800 dark:text-zinc-200">
             flag
           </strong>{' '}
-          shown in the table. The score follows a fixed rubric applied on the
-          server after extraction (Gemini may suggest fields; the numbers you
-          see use the rules below).
+          shown in the table. .
         </p>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               How the score is built
             </h3>
-            <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
-              Points add up toward 100, then the score is capped if totals or
-              line items do not line up:
-            </p>
+           
             <ul className="m-0 list-none space-y-2 p-0 text-sm text-zinc-800 dark:text-zinc-200">
               <li className="flex gap-2">
                 <span className="font-mono text-violet-600 dark:text-violet-400">
@@ -798,8 +887,8 @@ export function DashboardView({
               </li>
             </ul>
             <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-              If totals validation fails, the score is capped at 70 and the flag
-              is review. With no line items after cleanup, it is capped at 60.
+              If totals validation fails, the score is capped at 0 and the flag
+              is review. 
               Open an expense to see the stored score in details.
             </p>
           </div>
@@ -818,12 +907,11 @@ export function DashboardView({
                   <span className="rounded-md bg-emerald-600/15 px-2 py-0.5 font-mono text-xs uppercase tracking-wide">
                     auto
                   </span>
-                  Confidence ≥ 80
+                  Score 80+
                 </dt>
                 <dd className="m-0 text-emerald-900/90 dark:text-emerald-100/90">
-                  The model was reasonably sure about vendor, date, and total.
-                  You can still edit before save; approved saves are allowed
-                  without an extra review tick when rules allow.
+                  Looks reliable. You can still edit. Save may not ask for the
+                  extra “I reviewed” checkbox when the app allows it.
                 </dd>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
@@ -831,12 +919,11 @@ export function DashboardView({
                   <span className="rounded-md bg-amber-600/15 px-2 py-0.5 font-mono text-xs uppercase tracking-wide">
                     review
                   </span>
-                  Confidence &lt; 80
+                  Below 80
                 </dt>
                 <dd className="m-0 text-amber-950/90 dark:text-amber-100/90">
-                  Treat the extraction as uncertain: double-check amounts and line
-                  items. Saving as approved may require confirming you reviewed
-                  the expense.
+                  Treat as uncertain—check totals and line items. Saving may
+                  require confirming you reviewed.
                 </dd>
               </div>
             </dl>
@@ -848,15 +935,17 @@ export function DashboardView({
   )
 }
 
-function ReceiptHistoryTable({ recent, title, emptyHint, scrollable }) {
-  const wrapCls = scrollable
-    ? 'max-h-[min(70vh,36rem)] overflow-x-auto overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700'
-    : 'overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700'
+function ReceiptHistoryTable({ recent, title, emptyHint }) {
+  /** Horizontal scroll on narrow viewports only; no max-height so paged rows fit without a vertical scrollbar. */
+  const wrapCls =
+    'overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700'
   return (
     <section className={`${cardCls} text-left`}>
-      <h2 className="mb-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-        {title}
-      </h2>
+      {title ? (
+        <h2 className="mb-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+          {title}
+        </h2>
+      ) : null}
       {recent.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{emptyHint}</p>
       ) : (
@@ -914,7 +1003,9 @@ export function ReceiptView({
   recentTotalCount = 0,
   receiptLibraryPage = 0,
   receiptLibraryPageSize = 15,
+  receiptLibraryPageSizeOptions,
   onReceiptLibraryPageChange,
+  onReceiptLibraryPageSizeChange,
   onGoReceiptScan,
   phase,
   draft,
@@ -925,7 +1016,6 @@ export function ReceiptView({
   uploading,
   saving,
   saveError,
-  lastSavedId,
   recent,
   recentFetchError,
   inputKey,
@@ -966,7 +1056,7 @@ export function ReceiptView({
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
-                Receipts
+                All Receipts
               </h1>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
                 {recentTotalCount > 0
@@ -996,15 +1086,15 @@ export function ReceiptView({
           ) : null}
           <ReceiptHistoryTable
             recent={recent}
-            title="All receipts"
             emptyHint="No expenses yet. Use Scan new receipt to add one."
-            scrollable
           />
           <PagedNav
             pageIndex={receiptLibraryPage}
             pageSize={receiptLibraryPageSize}
             totalCount={recentTotalCount}
             onPageChange={onReceiptLibraryPageChange}
+            pageSizeOptions={receiptLibraryPageSizeOptions}
+            onPageSizeChange={onReceiptLibraryPageSizeChange}
           />
         </div>
       ) : null}
@@ -1039,7 +1129,7 @@ export function ReceiptView({
                 Receipt scan
               </h2>
               <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                Upload a receipt image (PNG or JPG). The server uses Gemini
+                Upload a receipt image (JPG, JPEG, PNG, or WebP). The server uses Gemini
                 (vision) on the image; you review before anything is saved as an
                 expense.
               </p>
@@ -1204,17 +1294,33 @@ export function ReceiptView({
                 {draft.items.map((row, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_7rem_auto]"
+                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_4rem_5.5rem_5.5rem_auto]"
                   >
                     <input
                       className={inputCls}
-                      placeholder="Name"
+                      placeholder="Description"
                       value={row.name}
                       onChange={(e) => updateItem(i, 'name', e.target.value)}
                     />
                     <input
+                      className={`${inputCls} sm:max-w-none`}
+                      placeholder="Qty"
+                      inputMode="decimal"
+                      value={row.qty ?? ''}
+                      onChange={(e) => updateItem(i, 'qty', e.target.value)}
+                    />
+                    <input
                       className={inputCls}
-                      placeholder="Price"
+                      placeholder="Unit"
+                      inputMode="decimal"
+                      value={row.unitPrice ?? ''}
+                      onChange={(e) =>
+                        updateItem(i, 'unitPrice', e.target.value)
+                      }
+                    />
+                    <input
+                      className={inputCls}
+                      placeholder="Line total"
                       inputMode="decimal"
                       value={row.price}
                       onChange={(e) => updateItem(i, 'price', e.target.value)}
@@ -1330,14 +1436,8 @@ export function ReceiptView({
 
           {phase === 'saved' && (
             <section className={`${cardCls} mb-5 text-left`}>
-              <p className="mb-2 text-lg font-medium text-zinc-900 dark:text-zinc-50">
+              <p className="mb-4 text-lg font-medium text-zinc-900 dark:text-zinc-50">
                 Expense saved.
-              </p>
-              <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                MongoDB id:{' '}
-                <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
-                  {lastSavedId}
-                </code>
               </p>
               <button type="button" className={btnPrimary} onClick={onReject}>
                 Upload another receipt
@@ -1350,7 +1450,6 @@ export function ReceiptView({
               recent={recent}
               title="Recent receipts"
               emptyHint="No recent receipts."
-              scrollable={false}
             />
           ) : null}
         </div>
@@ -1447,15 +1546,6 @@ export function ExpenseDetailModal({
             >
               {dashEditSession ? 'Edit expense' : 'Receipt details'}
             </h2>
-            <p className="mt-0.5 break-all text-xs text-zinc-600 dark:text-zinc-400 sm:text-sm">
-              <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                {(dashDetailExpense.finalData || {}).vendor || 'Expense'}
-              </span>{' '}
-              <span className="text-zinc-300 dark:text-zinc-600">·</span>{' '}
-              <span className="font-mono text-[11px] text-violet-600 dark:text-violet-400 sm:text-xs">
-                {dashDetailExpense._id}
-              </span>
-            </p>
           </div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             {!dashEditSession ? (
@@ -1600,11 +1690,11 @@ export function ExpenseDetailModal({
                 {dashEditSession.draft.items.map((row, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_7rem_auto]"
+                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_4rem_5.5rem_5.5rem_auto]"
                   >
                     <input
                       className={inputCls}
-                      placeholder="Name"
+                      placeholder="Description"
                       value={row.name}
                       onChange={(e) =>
                         dashEditUpdateItem(i, 'name', e.target.value)
@@ -1612,8 +1702,28 @@ export function ExpenseDetailModal({
                       disabled={dashEditSaving}
                     />
                     <input
+                      className={`${inputCls} sm:max-w-none`}
+                      placeholder="Qty"
+                      inputMode="decimal"
+                      value={row.qty ?? ''}
+                      onChange={(e) =>
+                        dashEditUpdateItem(i, 'qty', e.target.value)
+                      }
+                      disabled={dashEditSaving}
+                    />
+                    <input
                       className={inputCls}
-                      placeholder="Price"
+                      placeholder="Unit"
+                      inputMode="decimal"
+                      value={row.unitPrice ?? ''}
+                      onChange={(e) =>
+                        dashEditUpdateItem(i, 'unitPrice', e.target.value)
+                      }
+                      disabled={dashEditSaving}
+                    />
+                    <input
+                      className={inputCls}
+                      placeholder="Line total"
                       inputMode="decimal"
                       value={row.price}
                       onChange={(e) =>
@@ -1807,7 +1917,7 @@ export function ExpenseDetailModal({
                       <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                         {initialScanFailed
                           ? 'Values shown are what was saved on this expense (including any manual edits after a failed scan).'
-                          : 'Extracted rows from this expense. Quantity and unit price are shown when present; otherwise use line total only.'}
+                          : 'Extracted rows: Qty and Unit only when the receipt (or scan) had separate columns; the Total column is always the line amount.'}
                       </p>
                     </div>
 
@@ -1872,10 +1982,7 @@ export function ExpenseDetailModal({
                               const unitDisplay =
                                 unitRaw !== null
                                   ? formatDashAmount(unitRaw, cur)
-                                  : price !== null &&
-                                      !Number.isNaN(Number(price))
-                                    ? formatDashAmount(price, cur)
-                                    : '—'
+                                  : '—'
                               const totalDisplay =
                                 price !== null && !Number.isNaN(Number(price))
                                   ? formatDashAmount(price, cur)
