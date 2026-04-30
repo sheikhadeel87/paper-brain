@@ -1290,59 +1290,98 @@ export function ReceiptView({
               <h3 className="mb-2 mt-6 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                 Line items
               </h3>
-              <div className="flex flex-col gap-3">
-                {draft.items.map((row, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_4rem_5.5rem_5.5rem_auto]"
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder="Description"
-                      value={row.name}
-                      onChange={(e) => updateItem(i, 'name', e.target.value)}
-                    />
-                    <input
-                      className={`${inputCls} sm:max-w-none`}
-                      placeholder="Qty"
-                      inputMode="decimal"
-                      value={row.qty ?? ''}
-                      onChange={(e) => updateItem(i, 'qty', e.target.value)}
-                    />
-                    <input
-                      className={inputCls}
-                      placeholder="Unit"
-                      inputMode="decimal"
-                      value={row.unitPrice ?? ''}
-                      onChange={(e) =>
-                        updateItem(i, 'unitPrice', e.target.value)
-                      }
-                    />
-                    <input
-                      className={inputCls}
-                      placeholder="Line total"
-                      inputMode="decimal"
-                      value={row.price}
-                      onChange={(e) => updateItem(i, 'price', e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="justify-self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-violet-400 dark:hover:text-violet-300"
-                      onClick={() => removeItemRow(i)}
-                      disabled={draft.items.length <= 1}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
-                  onClick={addItemRow}
-                >
-                  Add line
-                </button>
+              <div className="-mx-1 max-w-full overflow-x-auto px-1 [-webkit-overflow-scrolling:touch]">
+                <table className="min-w-[26rem] w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/80">
+                      <th className="px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Description
+                      </th>
+                      <th className="w-[4.5rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Qty
+                      </th>
+                      <th className="w-[6rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Unit
+                      </th>
+                      <th className="w-[6rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Total
+                      </th>
+                      <th className="w-px whitespace-nowrap px-2 py-2.5">
+                        <span className="sr-only">Remove row</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draft.items.map((row, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-zinc-100 last:border-0 dark:border-zinc-800"
+                      >
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} min-w-[8rem] w-full`}
+                            placeholder="Description"
+                            value={row.name}
+                            onChange={(e) =>
+                              updateItem(i, 'name', e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Qty"
+                            inputMode="decimal"
+                            value={row.qty ?? ''}
+                            onChange={(e) =>
+                              updateItem(i, 'qty', e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Unit"
+                            inputMode="decimal"
+                            value={row.unitPrice ?? ''}
+                            onChange={(e) =>
+                              updateItem(i, 'unitPrice', e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Line total"
+                            inputMode="decimal"
+                            value={row.price}
+                            onChange={(e) =>
+                              updateItem(i, 'price', e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="py-2 align-middle">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-violet-400 dark:hover:text-violet-300"
+                            onClick={() => removeItemRow(i)}
+                            disabled={draft.items.length <= 1}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              <button
+                type="button"
+                className="mt-3 self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                onClick={addItemRow}
+              >
+                Add line
+              </button>
 
               <details className="mt-5 text-left text-sm text-zinc-700 dark:text-zinc-300">
                 <summary className="cursor-pointer font-medium text-zinc-800 dark:text-zinc-200">
@@ -1686,73 +1725,106 @@ export function ExpenseDetailModal({
               <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                 Line items
               </h3>
-              <div className="flex flex-col gap-3">
-                {dashEditSession.draft.items.map((row, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_4rem_5.5rem_5.5rem_auto]"
-                  >
-                    <input
-                      className={inputCls}
-                      placeholder="Description"
-                      value={row.name}
-                      onChange={(e) =>
-                        dashEditUpdateItem(i, 'name', e.target.value)
-                      }
-                      disabled={dashEditSaving}
-                    />
-                    <input
-                      className={`${inputCls} sm:max-w-none`}
-                      placeholder="Qty"
-                      inputMode="decimal"
-                      value={row.qty ?? ''}
-                      onChange={(e) =>
-                        dashEditUpdateItem(i, 'qty', e.target.value)
-                      }
-                      disabled={dashEditSaving}
-                    />
-                    <input
-                      className={inputCls}
-                      placeholder="Unit"
-                      inputMode="decimal"
-                      value={row.unitPrice ?? ''}
-                      onChange={(e) =>
-                        dashEditUpdateItem(i, 'unitPrice', e.target.value)
-                      }
-                      disabled={dashEditSaving}
-                    />
-                    <input
-                      className={inputCls}
-                      placeholder="Line total"
-                      inputMode="decimal"
-                      value={row.price}
-                      onChange={(e) =>
-                        dashEditUpdateItem(i, 'price', e.target.value)
-                      }
-                      disabled={dashEditSaving}
-                    />
-                    <button
-                      type="button"
-                      className="justify-self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-violet-400 dark:hover:text-violet-300"
-                      onClick={() => dashEditRemoveItemRow(i)}
-                      disabled={
-                        dashEditSaving ||
-                        dashEditSession.draft.items.length <= 1
-                      }
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
-                  onClick={dashEditAddItemRow}
-                  disabled={dashEditSaving}
-                >
-                  Add line
-                </button>
+              <div className="-mx-1 max-w-full overflow-x-auto px-1 [-webkit-overflow-scrolling:touch]">
+                <table className="min-w-[26rem] w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/80">
+                      <th className="px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Description
+                      </th>
+                      <th className="w-[4.5rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Qty
+                      </th>
+                      <th className="w-[6rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Unit
+                      </th>
+                      <th className="w-[6rem] whitespace-nowrap px-2 py-2.5 font-medium text-zinc-700 dark:text-zinc-300">
+                        Total
+                      </th>
+                      <th className="w-px whitespace-nowrap px-2 py-2.5">
+                        <span className="sr-only">Remove row</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashEditSession.draft.items.map((row, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-zinc-100 last:border-0 dark:border-zinc-800"
+                      >
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} min-w-[8rem] w-full`}
+                            placeholder="Description"
+                            value={row.name}
+                            onChange={(e) =>
+                              dashEditUpdateItem(i, 'name', e.target.value)
+                            }
+                            disabled={dashEditSaving}
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Qty"
+                            inputMode="decimal"
+                            value={row.qty ?? ''}
+                            onChange={(e) =>
+                              dashEditUpdateItem(i, 'qty', e.target.value)
+                            }
+                            disabled={dashEditSaving}
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Unit"
+                            inputMode="decimal"
+                            value={row.unitPrice ?? ''}
+                            onChange={(e) =>
+                              dashEditUpdateItem(i, 'unitPrice', e.target.value)
+                            }
+                            disabled={dashEditSaving}
+                          />
+                        </td>
+                        <td className="py-2 pr-2 align-middle">
+                          <input
+                            className={`${inputCls} w-full`}
+                            placeholder="Line total"
+                            inputMode="decimal"
+                            value={row.price}
+                            onChange={(e) =>
+                              dashEditUpdateItem(i, 'price', e.target.value)
+                            }
+                            disabled={dashEditSaving}
+                          />
+                        </td>
+                        <td className="py-2 align-middle">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-violet-400 dark:hover:text-violet-300"
+                            onClick={() => dashEditRemoveItemRow(i)}
+                            disabled={
+                              dashEditSaving ||
+                              dashEditSession.draft.items.length <= 1
+                            }
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              <button
+                type="button"
+                className="mt-3 self-start text-sm font-medium text-violet-600 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-violet-400 dark:hover:text-violet-300"
+                onClick={dashEditAddItemRow}
+                disabled={dashEditSaving}
+              >
+                Add line
+              </button>
               {(needsReviewAcknowledge(
                 dashEditSession.draft,
                 true,
