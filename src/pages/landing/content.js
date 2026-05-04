@@ -59,10 +59,38 @@ export const howItWorks = [
   },
 ]
 
-export const pricingTeaser = {
-  title: 'Straightforward to start',
-  body: 'Create a free account to try the full flow. No credit card required for the MVP — you bring your own API keys where needed.',
-}
+export const pricingTeaser = [
+  // title: 'Straightforward to start',
+  // body: 'Create a free account to try the full flow. No credit card required for the MVP — you bring your own API keys where needed.',
+
+    {
+      name: 'Free',
+      price: '$0',
+      description: 'Perfect for getting started with basic organization.',
+      features: [
+        '5 receipt scans per month',
+        'Basic data extraction',
+        'Standard dashboard access',
+        'Community support'
+      ],
+      buttonText: 'Start for free',
+      popular: false,
+    },
+    {
+      name: 'Pro',
+      price: '$12',
+      description: 'Advanced AI features for power users.',
+      features: [
+        'Unlimited receipt scans',
+        'City & Country detection',
+        'RAG-powered expense chat',
+        'Priority export & support'
+      ],
+      buttonText: 'Upgrade to Pro',
+      popular: true, // Highlight this plan
+    }
+  ];
+
 
 export const aboutBlurb =
   'Paper Brain is focused on receipt-to-expense workflows: fast capture, human-in-the-loop review, and a simple dashboard. We prioritize clarity over feature sprawl.'
