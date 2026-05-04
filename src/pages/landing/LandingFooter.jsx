@@ -80,6 +80,16 @@ export function LandingFooter() {
                   Pricing
                 </a>
               </li>
+              <li>
+                <a href="#how-it-works" className="text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
+                  How It Works
+                </a>
+              </li>
+              <li>
+                <a href="#about" className="text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400">
+                  About
+                </a>
+              </li>
             </ul>
           </div>
 
