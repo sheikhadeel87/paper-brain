@@ -55,7 +55,9 @@ export function LandingHowItWorks() {
     //   </div>
     // </section>
 
-<section className="py-24 bg-white dark:bg-zinc-950">
+<section 
+id="how-it-works"
+className="py-24 bg-white dark:bg-zinc-950">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center">
         <p className="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
           Simple Process
