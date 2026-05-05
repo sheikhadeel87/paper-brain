@@ -128,15 +128,43 @@ export function ConfidenceMeter({ value }) {
       : Number(value)
   const pct = !Number.isNaN(n) ? Math.min(100, Math.max(0, n)) : 0
   const label = !Number.isNaN(n) ? Math.round(n) : '—'
+
+  let barColor = 'bg-zinc-400 dark:bg-zinc-500'
+  let bandLabel = 'unknown'
+  if (!Number.isNaN(n)) {
+    if (n >= 81) {
+      barColor = 'bg-emerald-500 dark:bg-emerald-400'
+      bandLabel = 'high'
+    } else if (n >= 51) {
+      /* Same family as `FlagBadge` review (amber-100 pill); bar needs a bit more saturation to read on the grey track. */
+      barColor = 'bg-amber-300 dark:bg-amber-500'
+      bandLabel = 'medium'
+    } else if (n >= 31) {
+      barColor = 'bg-sky-500 dark:bg-sky-400'
+      bandLabel = 'low'
+    } else {
+      barColor = 'bg-red-500 dark:bg-red-400'
+      bandLabel = 'very low'
+    }
+  }
+
   return (
     <div className="min-w-[5.5rem]">
       <div className="mb-1 flex items-center justify-between gap-2 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
         <span>{label}</span>
         <span className="text-zinc-400">/100</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+      <div
+        className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700"
+        role="img"
+        aria-label={
+          Number.isNaN(n)
+            ? 'Confidence unavailable'
+            : `Confidence ${Math.round(n)} of 100, ${bandLabel} band`
+        }
+      >
         <div
-          className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 dark:bg-emerald-400"
+          className={`h-full rounded-full transition-[width] duration-300 ${barColor}`}
           style={{ width: `${pct}%` }}
         />
       </div>
