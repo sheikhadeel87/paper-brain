@@ -15,11 +15,7 @@ import {
   primaryPathSegment,
 } from './lib/appRoutes.js'
 import { AppChrome } from './components/ExpenseUi'
-import {
-  DashboardView,
-  ExpenseDetailModal,
-  ReceiptView,
-} from './AppViews'
+import { AppShellRoutes, ExpenseDetailModal } from './AppViews'
 
 const RECENT_SCAN_LIMIT = 10
 /** Dashboard “All expenses” + Receipts “All receipts”: `limit` / `skip` choices. */
@@ -794,93 +790,94 @@ export default function MainApp() {
         />
       }
     >
-      {mainTab === 'dashboard' && (
-        <DashboardView
-          onNavigateAddExpense={() => navigate(APP_PATHS.addExpense)}
-          dashboardPanel={dashboardPanel}
-          dashOverviewLimit={DASH_OVERVIEW_LIMIT}
-          expensesPage={expensesPage}
-          expensesPageSize={expensesPageSize}
-          expensesPageSizeOptions={LIST_PAGE_SIZE_OPTIONS}
-          onExpensesPageChange={setExpensesPage}
-          onExpensesPageSizeChange={handleExpensesPageSizeChange}
-          onViewAllExpenses={() => {
-            navigate(APP_PATHS.expenses)
-            setExpensesPage(0)
+      {(mainTab === 'dashboard' || mainTab === 'receipt') && (
+        <AppShellRoutes
+          dashboardProps={{
+            onNavigateAddExpense: () => navigate(APP_PATHS.addExpense),
+            dashOverviewLimit: DASH_OVERVIEW_LIMIT,
+            expensesPage,
+            expensesPageSize,
+            expensesPageSizeOptions: LIST_PAGE_SIZE_OPTIONS,
+            onExpensesPageChange: setExpensesPage,
+            onExpensesPageSizeChange: handleExpensesPageSizeChange,
+            onViewAllExpenses: () => {
+              navigate(APP_PATHS.expenses)
+              setExpensesPage(0)
+            },
+            onBackToDashboard: () => navigate(APP_PATHS.dashboard),
+            dashFrom,
+            dashTo,
+            dashVendor,
+            dashConfidenceFlag,
+            setDashFrom,
+            setDashTo,
+            setDashVendor,
+            setDashConfidenceFlag,
+            dashRows,
+            dashTotalCount,
+            dashSummary,
+            dashLoading,
+            dashError,
+            dashEditSaveError,
+            dashDetailExpense,
+            dashEditSaving,
+            dashDeleteBusy,
+            onApplyFilters: handleApplyDashboard,
+            onClearFilters: handleClearDashboardFilters,
+            onExportCsv: exportDashboardCsv,
+            exportCsvBusy: dashExportBusy,
+            onViewExpense: (ex) => {
+              setDashEditSaveError('')
+              setDashDetailExpense(ex)
+              setDashEditSession(null)
+            },
+            onEditExpense: (ex) => {
+              setDashEditSaveError('')
+              setDashDetailExpense(ex)
+              startDashEdit(ex)
+            },
+            onDeleteExpense: deleteDashExpense,
           }}
-          onBackToDashboard={() => navigate(APP_PATHS.dashboard)}
-          dashFrom={dashFrom}
-          dashTo={dashTo}
-          dashVendor={dashVendor}
-          dashConfidenceFlag={dashConfidenceFlag}
-          setDashFrom={setDashFrom}
-          setDashTo={setDashTo}
-          setDashVendor={setDashVendor}
-          setDashConfidenceFlag={setDashConfidenceFlag}
-          dashRows={dashRows}
-          dashTotalCount={dashTotalCount}
-          dashSummary={dashSummary}
-          dashLoading={dashLoading}
-          dashError={dashError}
-          dashEditSaveError={dashEditSaveError}
-          dashDetailExpense={dashDetailExpense}
-          dashEditSaving={dashEditSaving}
-          dashDeleteBusy={dashDeleteBusy}
-          onApplyFilters={handleApplyDashboard}
-          onClearFilters={handleClearDashboardFilters}
-          onExportCsv={exportDashboardCsv}
-          exportCsvBusy={dashExportBusy}
-          onViewExpense={(ex) => {
-            setDashEditSaveError('')
-            setDashDetailExpense(ex)
-            setDashEditSession(null)
+          receiptScanProps={{
+            phase,
+            draft,
+            rawText,
+            parseOk,
+            parseError,
+            needsReview,
+            uploading,
+            saving,
+            saveError,
+            recent,
+            recentFetchError,
+            inputKey,
+            confirmReviewAck,
+            setConfirmReviewAck,
+            setSaveError,
+            receiptPreviewUrl,
+            receiptUploadInputRef,
+            scanRetryable,
+            forceReviewAck,
+            onUpload,
+            updateField,
+            updateItem,
+            addItemRow,
+            removeItemRow,
+            retryReceiptScan,
+            onConfirmSave,
+            onReject,
           }}
-          onEditExpense={(ex) => {
-            setDashEditSaveError('')
-            setDashDetailExpense(ex)
-            startDashEdit(ex)
+          receiptLibraryProps={{
+            recentTotalCount,
+            receiptLibraryPage,
+            receiptLibraryPageSize,
+            receiptLibraryPageSizeOptions: LIST_PAGE_SIZE_OPTIONS,
+            onReceiptLibraryPageChange: setReceiptLibraryPage,
+            onReceiptLibraryPageSizeChange: handleReceiptLibraryPageSizeChange,
+            onGoReceiptScan: () => navigate(APP_PATHS.addExpense),
+            recent,
+            recentFetchError,
           }}
-          onDeleteExpense={deleteDashExpense}
-        />
-      )}
-
-      {mainTab === 'receipt' && (
-        <ReceiptView
-          receiptPanel={receiptPanel}
-          recentTotalCount={recentTotalCount}
-          receiptLibraryPage={receiptLibraryPage}
-          receiptLibraryPageSize={receiptLibraryPageSize}
-          receiptLibraryPageSizeOptions={LIST_PAGE_SIZE_OPTIONS}
-          onReceiptLibraryPageChange={setReceiptLibraryPage}
-          onReceiptLibraryPageSizeChange={handleReceiptLibraryPageSizeChange}
-          onGoReceiptScan={() => navigate(APP_PATHS.addExpense)}
-          phase={phase}
-          draft={draft}
-          rawText={rawText}
-          parseOk={parseOk}
-          parseError={parseError}
-          needsReview={needsReview}
-          uploading={uploading}
-          saving={saving}
-          saveError={saveError}
-          recent={recent}
-          recentFetchError={recentFetchError}
-          inputKey={inputKey}
-          confirmReviewAck={confirmReviewAck}
-          setConfirmReviewAck={setConfirmReviewAck}
-          setSaveError={setSaveError}
-          receiptPreviewUrl={receiptPreviewUrl}
-          receiptUploadInputRef={receiptUploadInputRef}
-          scanRetryable={scanRetryable}
-          forceReviewAck={forceReviewAck}
-          onUpload={onUpload}
-          updateField={updateField}
-          updateItem={updateItem}
-          addItemRow={addItemRow}
-          removeItemRow={removeItemRow}
-          retryReceiptScan={retryReceiptScan}
-          onConfirmSave={onConfirmSave}
-          onReject={onReject}
         />
       )}
     </AppChrome>
