@@ -1,9 +1,5 @@
 import { useMemo } from 'react'
-import {
-  DONUT_COLORS,
-  currencyDisplayLabel,
-  formatKpiMoney,
-} from '../../lib/dashboardBits'
+import { DONUT_COLORS } from '../../lib/dashboardBits'
 
 export const DASH_CURRENCY_CARD_LIMIT = 3
 

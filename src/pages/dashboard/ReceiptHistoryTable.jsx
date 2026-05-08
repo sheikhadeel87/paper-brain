@@ -31,14 +31,19 @@ export function ReceiptHistoryTable({ recent, title, emptyHint }) {
               </tr>
             </thead>
             <tbody>
-              {recent.map((ex) => {
-                const fd = ex.finalData || {}
+              {recent.map((ex, i) => {
+                const fd =
+                  ex.finalData && typeof ex.finalData === 'object'
+                    ? ex.finalData
+                    : ex && typeof ex === 'object'
+                      ? ex
+                      : {}
                 const created = ex.createdAt
                   ? new Date(ex.createdAt).toLocaleString()
                   : '—'
                 return (
                   <tr
-                    key={ex._id}
+                    key={ex._id || ex.id || `recent-${i}`}
                     className="border-b border-zinc-100 last:border-0 dark:border-zinc-800"
                   >
                     <td className="max-w-[14rem] truncate px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">

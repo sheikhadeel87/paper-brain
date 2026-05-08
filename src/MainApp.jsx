@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import { toast } from 'react-hot-toast';
@@ -14,6 +21,7 @@ import {
   parseAppSection,
   primaryPathSegment,
 } from './lib/appRoutes.js'
+import { receiptImageFileWithinLimits } from './lib/receiptImageAccept.js'
 import { AppChrome } from './components/ExpenseUi'
 import { AppShellRoutes, ExpenseDetailModal } from './AppViews'
 
@@ -28,6 +36,49 @@ const DASH_OVERVIEW_LIMIT = 10
  * A single `Promise.race` caps the *entire* operation, including the body, and we abort the signal.
  */
 const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
+const RECEIPT_QUEUE_STORAGE_KEY = 'paper-brain:receipt-batch-poll'
+
+/** Stable copy of `FileList` (some browsers mutate / clear it when the input is reset). */
+function fileListToArray(fileList) {
+  if (!fileList || typeof fileList.length !== 'number') return []
+  const n = fileList.length
+  const out = []
+  for (let i = 0; i < n; i++) {
+    const f = typeof fileList.item === 'function' ? fileList.item(i) : fileList[i]
+    if (f) out.push(f)
+  }
+  return out
+}
+
+function readPersistedReceiptBatchPoll() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(RECEIPT_QUEUE_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const sessionKey =
+      typeof parsed.sessionKey === 'string' ? parsed.sessionKey.trim() : ''
+    const jobIds = Array.isArray(parsed.jobIds)
+      ? parsed.jobIds.map((id) => String(id)).filter(Boolean)
+      : []
+    if (!sessionKey) return null
+    const fileNamesById =
+      parsed.fileNamesById && typeof parsed.fileNamesById === 'object'
+        ? parsed.fileNamesById
+        : {}
+    return {
+      sessionKey,
+      jobIds,
+      fileNamesById,
+      summary: parsed.summary && typeof parsed.summary === 'object' ? parsed.summary : null,
+      jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
+      idle: Boolean(parsed.idle),
+    }
+  } catch {
+    return null
+  }
+}
 
 export default function MainApp() {
   const { authFetch, user, logout } = useAuth()
@@ -67,15 +118,101 @@ export default function MainApp() {
   const [inputKey, setInputKey] = useState(0)
   /** Server `Receipt` draft id from last upload; sent with confirm save to link rows. */
   const [receiptDraftId, setReceiptDraftId] = useState('')
+  /**
+   * When one image produces several Receipt drafts (multi-slip photo), we review/save in order.
+   * `items` matches `/api/receipt/upload` `receipts` array; `index` is the slip currently on screen.
+   */
+  const [multiReceiptQueue, setMultiReceiptQueue] = useState(null)
   const [confirmReviewAck, setConfirmReviewAck] = useState(false)
   const [forceReviewAck, setForceReviewAck] = useState(false)
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
+  /** Blob URLs for the latest queued file selection (Add expense sidebar + gallery). */
+  const [receiptQueuePreviewUrls, setReceiptQueuePreviewUrls] = useState([])
+  const receiptQueuePreviewUrlsRef = useRef([])
+  /** Files accumulated for receipt previews across multiple file-picker runs on Add expense. */
+  const receiptSessionPickedFilesRef = useRef([])
   /** Holds the active blob: URL so we revoke exactly once (avoids Strict Mode breaking preview). */
   const receiptBlobRef = useRef(null)
   /** Last file sent to `/api/receipt/upload` — used for “Retry scan”. */
   const lastReceiptFileRef = useRef(null)
   const receiptUploadInputRef = useRef(null)
   const [scanRetryable, setScanRetryable] = useState(false)
+  /** Server message for totals mismatch etc. (per slip in multi-receipt queue). */
+  const [receiptReviewHint, setReceiptReviewHint] = useState('')
+  /**
+   * BullMQ session: merged job ids, live summary from `/jobs-status`, stable `sessionKey` for polling.
+   */
+  const [receiptBatchPoll, setReceiptBatchPoll] = useState(
+    () => readPersistedReceiptBatchPoll(),
+  )
+  const [receiptBatchPostBusy, setReceiptBatchPostBusy] = useState(false)
+  const receiptBatchPollRef = useRef(null)
+  receiptBatchPollRef.current = receiptBatchPoll
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      if (!receiptBatchPoll?.sessionKey) {
+        window.localStorage.removeItem(RECEIPT_QUEUE_STORAGE_KEY)
+        return
+      }
+      window.localStorage.setItem(
+        RECEIPT_QUEUE_STORAGE_KEY,
+        JSON.stringify(receiptBatchPoll),
+      )
+    } catch {
+      /* ignore quota / privacy mode errors */
+    }
+  }, [receiptBatchPoll])
+
+  const dismissReceiptQueue = useCallback(() => {
+    setReceiptBatchPoll(null)
+  }, [])
+
+  const receiptBatchProgress = useMemo(() => {
+    if (!receiptBatchPoll?.sessionKey) return null
+    const { jobIds, jobs, fileNamesById, summary, idle } = receiptBatchPoll
+    const jobMap = new Map((jobs || []).map((j) => [String(j.id), j]))
+    const mergedJobs = jobIds.map((id) => {
+      const sid = String(id)
+      const row = jobMap.get(sid)
+      const fallbackName = fileNamesById?.[sid] || ''
+      if (row) {
+        return {
+          ...row,
+          fileName:
+            (typeof row.fileName === 'string' && row.fileName.trim() !== ''
+              ? row.fileName
+              : fallbackName) || sid,
+        }
+      }
+      return { id: sid, state: 'unknown', fileName: fallbackName || sid }
+    })
+    const totals =
+      summary ||
+      (jobIds.length
+        ? {
+            total: jobIds.length,
+            completed: 0,
+            processing: 0,
+            waiting: jobIds.length,
+            failed: 0,
+          }
+        : {
+            total: 0,
+            completed: 0,
+            processing: 0,
+            waiting: 0,
+            failed: 0,
+          })
+    return {
+      mergedJobs,
+      summary: totals,
+      idle: Boolean(idle),
+      batchPostBusy: receiptBatchPostBusy,
+      onDismissQueue: dismissReceiptQueue,
+    }
+  }, [receiptBatchPoll, receiptBatchPostBusy, dismissReceiptQueue])
 
   const [dashFrom, setDashFrom] = useState('')
   const [dashTo, setDashTo] = useState('')
@@ -122,40 +259,62 @@ export default function MainApp() {
   }, [dashboardPanel])
 
   const loadRecent = useCallback(async () => {
+    const isReceiptTab = mainTab === 'receipt'
     const isLibrary = mainTab === 'receipt' && receiptPanel === 'library'
     const limit = isLibrary ? receiptLibraryPageSize : RECENT_SCAN_LIMIT
     const skip = isLibrary ? receiptLibraryPage * receiptLibraryPageSize : 0
+    const endpoint = isReceiptTab
+      ? `/api/receipt/drafts?limit=${limit}&skip=${skip}`
+      : `/api/expenses?limit=${limit}&skip=${skip}`
     setRecentFetchError('')
     try {
-      const r = await authFetch(`/api/expenses?limit=${limit}&skip=${skip}`)
+      const r = await authFetch(endpoint)
       const data = await r.json().catch(() => ({}))
       if (!r.ok) {
         setRecentFetchError(
           typeof data.error === 'string'
             ? data.error
-            : `Could not load expenses (${r.status}). Is the API running?`,
+            : isReceiptTab
+              ? `Could not load receipt drafts (${r.status}). Is the API running?`
+              : `Could not load expenses (${r.status}). Is the API running?`,
         )
         setRecent([])
         setRecentTotalCount(0)
         return
       }
-      if (data.success && Array.isArray(data.expenses)) {
-        setRecent(data.expenses)
+      const rows =
+        data.success && isReceiptTab
+          ? Array.isArray(data.receipts)
+            ? data.receipts
+            : null
+          : data.success && Array.isArray(data.expenses)
+            ? data.expenses
+            : null
+      if (rows) {
+        setRecent(rows)
         setRecentTotalCount(
-          typeof data.totalCount === 'number' ? data.totalCount : data.expenses.length,
+          typeof data.totalCount === 'number' ? data.totalCount : rows.length,
         )
       } else {
         setRecent([])
         setRecentTotalCount(0)
         setRecentFetchError(
-          typeof data.error === 'string' ? data.error : 'Could not load expenses.',
+          typeof data.error === 'string'
+            ? data.error
+            : isReceiptTab
+              ? 'Could not load receipt drafts.'
+              : 'Could not load expenses.',
         )
       }
     } catch (e) {
       setRecent([])
       setRecentTotalCount(0)
       setRecentFetchError(
-        e instanceof Error ? e.message : 'Network error loading expenses.',
+        e instanceof Error
+          ? e.message
+          : isReceiptTab
+            ? 'Network error loading receipt drafts.'
+            : 'Network error loading expenses.',
       )
     }
   }, [authFetch, mainTab, receiptPanel, receiptLibraryPage, receiptLibraryPageSize])
@@ -163,6 +322,70 @@ export default function MainApp() {
   useEffect(() => {
     void loadRecent()
   }, [loadRecent])
+
+  useEffect(() => {
+    const sessionKey = receiptBatchPoll?.sessionKey
+    if (!sessionKey || receiptBatchPoll?.idle) return undefined
+
+    let cancelled = false
+    let intervalId
+    let completionToastShown = false
+
+    async function tick() {
+      if (cancelled) return
+      const snap = receiptBatchPollRef.current
+      if (!snap || snap.sessionKey !== sessionKey || snap.idle) return
+      const ids = snap.jobIds
+      if (!ids.length) return
+      try {
+        const r = await authFetch(`/api/receipt/jobs-status?ids=${ids.join(',')}`)
+        const data = await r.json().catch(() => ({}))
+        if (cancelled || !r.ok || !data.success || !data.summary) return
+        const s = data.summary
+        const queueIdle =
+          s.total > 0 &&
+          s.processing === 0 &&
+          s.waiting === 0 &&
+          s.completed + s.failed === s.total
+
+        setReceiptBatchPoll((prev) => {
+          if (!prev || prev.sessionKey !== sessionKey) return prev
+          return {
+            ...prev,
+            summary: s,
+            jobs: Array.isArray(data.jobs) ? data.jobs : prev.jobs,
+            idle: queueIdle,
+          }
+        })
+
+        if (queueIdle && !completionToastShown) {
+          completionToastShown = true
+          if (intervalId) clearInterval(intervalId)
+          if (!cancelled) {
+            if (s.failed > 0) {
+              toast.error(
+                `Queue caught up: ${s.completed} completed, ${s.failed} failed. Receipt drafts are in your account.`,
+              )
+            } else {
+              toast.success(
+                `Queue caught up: ${s.completed} receipt image(s) processed. Drafts are ready for review.`,
+              )
+            }
+            void loadRecent()
+          }
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }
+
+    void tick()
+    intervalId = setInterval(() => void tick(), 2000)
+    return () => {
+      cancelled = true
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [authFetch, loadRecent, receiptBatchPoll?.sessionKey, receiptBatchPoll?.idle])
 
   useEffect(() => {
     if (!parsed) return
@@ -176,10 +399,18 @@ export default function MainApp() {
       URL.revokeObjectURL(receiptBlobRef.current)
       receiptBlobRef.current = null
     }
+    receiptQueuePreviewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u))
+    receiptQueuePreviewUrlsRef.current = []
+    receiptSessionPickedFilesRef.current = []
     setReceiptPreviewUrl(null)
+    setReceiptQueuePreviewUrls([])
   }, [])
 
   const setReceiptPreviewFromFile = useCallback((file) => {
+    receiptQueuePreviewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u))
+    receiptQueuePreviewUrlsRef.current = []
+    receiptSessionPickedFilesRef.current = []
+    setReceiptQueuePreviewUrls([])
     if (receiptBlobRef.current) {
       URL.revokeObjectURL(receiptBlobRef.current)
       receiptBlobRef.current = null
@@ -189,12 +420,17 @@ export default function MainApp() {
     setReceiptPreviewUrl(url)
   }, [])
 
+  useLayoutEffect(() => {
+    receiptQueuePreviewUrlsRef.current = receiptQueuePreviewUrls
+  }, [receiptQueuePreviewUrls])
+
   useEffect(() => {
     return () => {
       if (receiptBlobRef.current) {
         URL.revokeObjectURL(receiptBlobRef.current)
         receiptBlobRef.current = null
       }
+      // Queue blob URLs: revoked in clearReceiptPreview / onUpload only (not here — Strict Mode).
     }
   }, [])
 
@@ -205,7 +441,7 @@ export default function MainApp() {
   }, [mainTab, clearReceiptPreview])
 
   /** Optional `override` uses those strings instead of state (fixes stale fetch after clear). */
-  function expenseFilterParams(override) {
+  const expenseFilterParams = useCallback((override) => {
     const from =
       override && typeof override.from === 'string' ? override.from : dashFrom
     const to = override && typeof override.to === 'string' ? override.to : dashTo
@@ -225,7 +461,7 @@ export default function MainApp() {
       p.set('confidenceFlag', confidenceFlag)
     }
     return p
-  }
+  }, [dashFrom, dashTo, dashVendor, dashConfidenceFlag])
 
   function expenseQueryString(skip, limit, filterOverride) {
     const p = expenseFilterParams(filterOverride)
@@ -264,7 +500,7 @@ export default function MainApp() {
     } finally {
       setDashExportBusy(false)
     }
-  }, [authFetch, dashFrom, dashTo, dashVendor, dashConfidenceFlag])
+  }, [authFetch, expenseFilterParams])
 
   const runDashboardFetch = useCallback(
     async ({ filterOverride } = {}) => {
@@ -565,7 +801,10 @@ export default function MainApp() {
       // --- CASE: Server responded, but with an ERROR (e.g. 500, 400) ---
       if (!res.ok) {
         toast.error(data.error || 'Upload failed');
-        
+        setMultiReceiptQueue(null)
+        setReceiptDraftId('')
+        setReceiptReviewHint('')
+
         // ... your existing state updates for !res.ok ...
         setRawText(typeof data.rawText === 'string' ? data.rawText : '');
         setParseOk(false);
@@ -587,6 +826,8 @@ export default function MainApp() {
       
       if (!success) {
         toast.error('AI could not read receipt details clearly.');
+        setMultiReceiptQueue(null)
+        setReceiptReviewHint('')
       }
   
       // ... your existing success logic (setting snapshots, drafts, etc.) ...
@@ -594,17 +835,46 @@ export default function MainApp() {
       setParseOk(success);
       setParseError(typeof data.error === 'string' ? data.error : '');
       setScanRetryable(!success && data.retryable !== false);
-      setNeedsReview(Boolean(data.needsReview) || !success);
+      const receiptsList = Array.isArray(data.receipts) ? data.receipts : []
+      const hint0 =
+        success && receiptsList.length > 0 && typeof receiptsList[0].reviewHint === 'string'
+          ? receiptsList[0].reviewHint.trim()
+          : ''
+      setReceiptReviewHint(hint0)
+      setNeedsReview(Boolean(data.needsReview) || !success || Boolean(hint0));
       const ai = success ? data.aiData : null;
       const snap = ai ? JSON.parse(JSON.stringify(ai)) : { aiParseFailed: true, error: 'AI unavailable' };
       setOriginalAiSnapshot(snap);
       setDraft(success ? aiDataToDraft(ai) : aiDataToDraft(null, { parseFailed: true }));
       setPhase('review');
+
+      /** Multi-receipt: server returns `receipts` with one entry per slip; link save to the active draft id. */
+      if (success && receiptsList.length > 1) {
+        setMultiReceiptQueue({
+          items: receiptsList.map((r) => ({
+            receiptId: String(r.receiptId ?? '').trim(),
+            aiData: r.aiData && typeof r.aiData === 'object' ? r.aiData : {},
+            rawText: typeof r.rawText === 'string' ? r.rawText : '',
+            reviewHint: typeof r.reviewHint === 'string' ? r.reviewHint.trim() : '',
+          })),
+          index: 0,
+        })
+        setReceiptDraftId(String(receiptsList[0]?.receiptId ?? '').trim())
+      } else {
+        setMultiReceiptQueue(null)
+        const rid = receiptsList[0]?.receiptId ?? data.receiptId
+        setReceiptDraftId(
+          rid != null && String(rid).trim() !== '' ? String(rid).trim() : '',
+        )
+      }
   
     } catch (err) {
       // --- CASE: CATCH (Timeout, Network error, or Crash) ---
       const isTimeout = err?.name === 'TimeoutError' || err?.message === 'timeout';
-      
+      setMultiReceiptQueue(null)
+      setReceiptDraftId('')
+      setReceiptReviewHint('')
+
       if (isTimeout) {
         toast.error('Taking too long. Check your connection.');
       } else {
@@ -619,28 +889,150 @@ export default function MainApp() {
     }
   }
 
+  async function runReceiptBatchUpload(files) {
+    if (!files.length) return
+    setSaveError('')
+    setReceiptBatchPostBusy(true)
+    try {
+      const prevIds = receiptBatchPollRef.current?.jobIds ?? []
+      const fd = new FormData()
+      for (const f of files) {
+        fd.append('receipts', f)
+      }
+      const res = await authFetch('/api/receipt/upload-multiple', {
+        method: 'POST',
+        body: fd,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success || !Array.isArray(data.jobIds)) {
+        toast.error(
+          typeof data.error === 'string' ? data.error : 'Could not queue uploads.',
+        )
+        return
+      }
+
+      if (data.processedInline && data.summary) {
+        const s = data.summary
+        setReceiptBatchPoll(() => ({
+          sessionKey:
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `q_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+          jobIds: [],
+          fileNamesById: {},
+          summary: s,
+          jobs: Array.isArray(data.jobs) ? data.jobs : [],
+          idle: true,
+        }))
+        if (s.failed > 0) {
+          toast.error(
+            `${s.completed} processed, ${s.failed} failed. Check drafts or try again.`,
+          )
+        } else {
+          toast.success(
+            `${s.completed} receipt image(s) processed. Drafts are ready for review.`,
+          )
+        }
+        void loadRecent()
+        setPhase('upload')
+        lastReceiptFileRef.current = null
+        setInputKey((k) => k + 1)
+        return
+      }
+
+      const jobIds = data.jobIds.map((id) => String(id))
+      const fileNames = Array.isArray(data.fileNames) ? data.fileNames : []
+      const nameMap = {}
+      jobIds.forEach((id, i) => {
+        const n = fileNames[i]
+        nameMap[id] = typeof n === 'string' && n.trim() !== '' ? n : `Receipt ${i + 1}`
+      })
+      const mergedCount = new Set([...prevIds, ...jobIds]).size
+      setReceiptBatchPoll((prev) => {
+        if (!prev?.sessionKey) {
+          return {
+            sessionKey:
+              typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `q_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+            jobIds,
+            fileNamesById: nameMap,
+            summary: null,
+            jobs: [],
+            idle: false,
+          }
+        }
+        const mergedIds = [...prev.jobIds]
+        for (const id of jobIds) {
+          if (!mergedIds.includes(id)) mergedIds.push(id)
+        }
+        return {
+          ...prev,
+          jobIds: mergedIds,
+          fileNamesById: { ...prev.fileNamesById, ...nameMap },
+          idle: false,
+        }
+      })
+      toast.success(
+        `${jobIds.length} image(s) added to the queue (${mergedCount} jobs total). You can add more while others process.`,
+      )
+      setPhase('upload')
+      lastReceiptFileRef.current = null
+      setInputKey((k) => k + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Queue request failed.')
+    } finally {
+      setReceiptBatchPostBusy(false)
+    }
+  }
+
   async function onUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const input = e.target
+    const raw = fileListToArray(input?.files)
+    input.value = ''
+    if (raw.length === 0) return
 
-    // 1. Validate File Format (Prevention)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Format not supported. Please use JPEG, PNG, or WebP.')
-      e.target.value = '' 
+    const list = raw.filter(receiptImageFileWithinLimits)
+    const skipped = raw.length - list.length
+    if (list.length === 0) {
+      if (skipped > 0) {
+        toast.error(
+          skipped === raw.length
+            ? 'No supported images (JPEG / PNG / WebP, max 10MB each).'
+            : 'No supported images left after filtering (JPEG / PNG / WebP, max 10MB each).',
+        )
+      }
       return
     }
-
-    // 2. Validate File Size (Optional: 10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File is too large (Max 10MB).")
-      e.target.value = ''
-      return
+    if (skipped > 0) {
+      toast.success(
+        `${skipped} file(s) skipped (unsupported type, unknown extension, or over 10MB).`,
+      )
     }
 
-    // 3. Proceed to the main upload logic
-    await runReceiptUpload(file)
-    e.target.value = ''
+    const MAX_QUEUE_PREVIEW = 60
+    const mergedFiles = [...receiptSessionPickedFilesRef.current, ...list].slice(
+      -MAX_QUEUE_PREVIEW,
+    )
+    receiptSessionPickedFilesRef.current = mergedFiles
+
+    const oldQueue = receiptQueuePreviewUrlsRef.current.slice()
+    oldQueue.forEach((u) => URL.revokeObjectURL(u))
+    if (receiptBlobRef.current) {
+      URL.revokeObjectURL(receiptBlobRef.current)
+      receiptBlobRef.current = null
+    }
+    setReceiptPreviewUrl(null)
+    const next = mergedFiles.map((f) => URL.createObjectURL(f))
+    receiptQueuePreviewUrlsRef.current = next
+    setReceiptQueuePreviewUrls(next)
+    if (list.length > MAX_QUEUE_PREVIEW) {
+      toast.success(
+        `Preview gallery shows the first ${MAX_QUEUE_PREVIEW} images; all ${list.length} files were queued.`,
+      )
+    }
+
+    await runReceiptBatchUpload(list)
   }
 
   function retryReceiptScan() {
@@ -726,9 +1118,39 @@ export default function MainApp() {
         setSaveError(msg)
         return
       }
+
+      const q = multiReceiptQueue
+      if (q && q.items.length > 1 && q.index < q.items.length - 1) {
+        const nextIdx = q.index + 1
+        const next = q.items[nextIdx]
+        setMultiReceiptQueue({ ...q, index: nextIdx })
+        setReceiptDraftId(next.receiptId)
+        setRawText(next.rawText)
+        setParseOk(true)
+        setParseError('')
+        const nextHint =
+          typeof next.reviewHint === 'string' ? next.reviewHint.trim() : ''
+        setReceiptReviewHint(nextHint)
+        setNeedsReview(
+          next.aiData?.confidence_flag === 'review' || Boolean(nextHint),
+        )
+        setOriginalAiSnapshot(cloneJsonSafe(next.aiData))
+        setDraft(aiDataToDraft(next.aiData))
+        setUserEdited(false)
+        setConfirmReviewAck(false)
+        setForceReviewAck(false)
+        setSaveError('')
+        toast.success(
+          `Saved ${nextIdx} of ${q.items.length} — review receipt ${nextIdx + 1}`,
+        )
+        return
+      }
+
       setConfirmReviewAck(false)
       setForceReviewAck(false)
       setReceiptDraftId('')
+      setMultiReceiptQueue(null)
+      setReceiptReviewHint('')
       setPhase('saved')
       await loadRecent()
     } catch (err) {
@@ -741,6 +1163,8 @@ export default function MainApp() {
   function onReject() {
     setPhase('upload')
     setDraft(null)
+    setReceiptReviewHint('')
+    setReceiptBatchPoll(null)
     lastReceiptFileRef.current = null
     setScanRetryable(false)
     clearReceiptPreview()
@@ -753,6 +1177,7 @@ export default function MainApp() {
     setConfirmReviewAck(false)
     setForceReviewAck(false)
     setReceiptDraftId('')
+    setMultiReceiptQueue(null)
     setInputKey((k) => k + 1)
   }
 
@@ -855,6 +1280,7 @@ export default function MainApp() {
             setConfirmReviewAck,
             setSaveError,
             receiptPreviewUrl,
+            receiptQueuePreviewUrls,
             receiptUploadInputRef,
             scanRetryable,
             forceReviewAck,
@@ -866,6 +1292,15 @@ export default function MainApp() {
             retryReceiptScan,
             onConfirmSave,
             onReject,
+            multiReceiptInfo:
+              multiReceiptQueue && multiReceiptQueue.items.length > 1
+                ? {
+                    current: multiReceiptQueue.index + 1,
+                    total: multiReceiptQueue.items.length,
+                  }
+                : null,
+            receiptReviewHint,
+            receiptBatchProgress,
           }}
           receiptLibraryProps={{
             recentTotalCount,

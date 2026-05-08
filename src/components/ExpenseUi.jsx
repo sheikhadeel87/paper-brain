@@ -418,7 +418,7 @@ export function AppChrome({
         </div>
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:min-h-svh">
-        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-3 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-8 lg:px-8">
+        <main className="mx-auto w-full min-w-0 max-w-[1236px] flex-1 px-3 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-8 lg:px-8">
           {children}
         </main>
       </div>
