@@ -26,4 +26,14 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // Espree does not treat `<motion.div />` as a use of `motion`; allow `motion` in landing JSX.
+  {
+    files: ['src/pages/landing/**/*.{js,jsx}'],
+    rules: {
+      'no-unused-vars': [
+        'error',
+        { varsIgnorePattern: '^([A-Z_]|motion)' },
+      ],
+    },
+  },
 ])

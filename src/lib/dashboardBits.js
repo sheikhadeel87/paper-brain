@@ -10,13 +10,15 @@ export const DONUT_COLORS = [
 /** Map common symbols / words to ISO 4217 (expense `currency` is not always a 3-letter code). */
 const SYMBOL_OR_ALIAS_TO_ISO = {
   '€': 'EUR',
-  '\u20ac': 'EUR',
   $: 'USD',
-  '\u0024': 'USD',
   '£': 'GBP',
-  '\u00a3': 'GBP',
   '¥': 'JPY',
-  '\u00a5': 'JPY',
+  'A$': 'AUD',
+  'AU$': 'AUD',
+  'C$': 'CAD',
+  'S$': 'SGD',
+  'HK$': 'HKD',
+  'NZ$': 'NZD',
   EURO: 'EUR',
   EUROS: 'EUR',
   DOLLAR: 'USD',
@@ -25,7 +27,7 @@ const SYMBOL_OR_ALIAS_TO_ISO = {
 
 /**
  * Returns ISO 4217 code (e.g. EUR) or null.
- * Accepts `EUR`, `eur`, `€`, `EURO`, `$` (→ USD), etc.
+ * Accepts `EUR`, `eur`, `€`, `EURO`, `$` (→ USD), `A$` (→ AUD), any valid ISO code (CHF, PKR, …), etc.
  */
 export function resolveIsoCurrency(raw) {
   const s = String(raw ?? '').trim()

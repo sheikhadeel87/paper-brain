@@ -1,5 +1,4 @@
-import { howItWorks } from './content.js'
-import { Upload, ScanSearch, CheckCircle2 } from 'lucide-react';
+import { Upload, ScanSearch, CheckCircle2 } from 'lucide-react'
 
 export function LandingHowItWorks() {
   const steps = [

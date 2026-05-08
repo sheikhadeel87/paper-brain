@@ -342,8 +342,7 @@ export function ExpenseDetailModal({
                         role="status"
                       >
                         <p className="font-semibold">
-                          Why does “Original AI snapshot” show a failure but the
-                          receipt looks complete?
+                          Why can a scan fail but the receipt still look complete?
                         </p>
                         <p className="mt-2 leading-relaxed text-amber-950/95 dark:text-amber-100/90">
                           That JSON is only a{' '}
@@ -551,15 +550,6 @@ export function ExpenseDetailModal({
                         {typeof ex.rawText === 'string' && ex.rawText.trim()
                           ? ex.rawText
                           : '—'}
-                      </pre>
-                    </details>
-
-                    <details className="group mt-2 rounded-xl border border-violet-100 bg-white open:border-violet-200 dark:border-violet-900/40 dark:bg-zinc-900/50 dark:open:border-violet-800/60">
-                      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-violet-900 marker:content-none hover:bg-violet-50/60 dark:text-violet-100 dark:hover:bg-violet-950/30 [&::-webkit-details-marker]:hidden">
-                        Original AI snapshot
-                      </summary>
-                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-violet-100 bg-zinc-50/90 p-3 font-mono text-xs text-zinc-800 dark:border-violet-900/30 dark:bg-zinc-950 dark:text-zinc-200">
-                        {JSON.stringify(ex.originalAiData ?? {}, null, 2)}
                       </pre>
                     </details>
                   </>
