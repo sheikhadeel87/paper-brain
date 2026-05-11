@@ -38,6 +38,32 @@ const DASH_OVERVIEW_LIMIT = 10
 const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
 const RECEIPT_QUEUE_STORAGE_KEY = 'paper-brain:receipt-batch-poll'
 
+/** After `202` from `/api/receipt/upload`, poll until Inngest finishes (same overall timeout budget). */
+async function pollReceiptUploadStatus(authFetch, receiptId, signal) {
+  const deadline = Date.now() + RECEIPT_UPLOAD_TIMEOUT_MS - 4000
+  while (Date.now() < deadline) {
+    if (signal.aborted) return null
+    await new Promise((r) => {
+      setTimeout(r, 1600)
+    })
+    const r = await authFetch(
+      `/api/receipt/upload-status/${encodeURIComponent(receiptId)}`,
+      { signal },
+    )
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) {
+      return {
+        success: false,
+        processingStatus: 'failed',
+        error: typeof j.error === 'string' ? j.error : 'Could not load receipt status.',
+      }
+    }
+    const st = j.processingStatus
+    if (st === 'completed' || st === 'failed') return j
+  }
+  return null
+}
+
 /** Stable copy of `FileList` (some browsers mutate / clear it when the input is reset). */
 function fileListToArray(fileList) {
   if (!fileList || typeof fileList.length !== 'number') return []
@@ -796,8 +822,58 @@ export default function MainApp() {
         }),
       ]);
       
-      let data = rawData;
-  
+      let data = rawData
+
+      if (res.ok && res.status === 202 && data.accepted && data.receiptId) {
+        const rid = String(data.receiptId).trim()
+        const t = toast.loading('Scanning receipt…')
+        const polled = await pollReceiptUploadStatus(authFetch, rid, controller.signal)
+        toast.dismiss(t)
+        if (!polled) {
+          toast.error('Taking too long. Check your connection or try again.')
+          setMultiReceiptQueue(null)
+          setReceiptDraftId('')
+          setReceiptReviewHint('')
+          setRawText('')
+          setParseOk(false)
+          setParseError('Timed out while waiting for scan to finish.')
+          setScanRetryable(true)
+          setNeedsReview(true)
+          setOriginalAiSnapshot({
+            aiParseFailed: true,
+            error: 'timeout',
+            rawText: '',
+          })
+          setDraft(aiDataToDraft(null, { parseFailed: true }))
+          setPhase('review')
+          return
+        }
+        if (polled.processingStatus === 'failed') {
+          toast.error(
+            typeof polled.error === 'string' ? polled.error : 'Receipt could not be processed.',
+          )
+          setMultiReceiptQueue(null)
+          setReceiptDraftId('')
+          setReceiptReviewHint('')
+          setRawText(typeof polled.rawText === 'string' ? polled.rawText : '')
+          setParseOk(false)
+          setParseError(
+            typeof polled.error === 'string' ? polled.error : 'Processing failed.',
+          )
+          setScanRetryable(false)
+          setNeedsReview(true)
+          setOriginalAiSnapshot({
+            aiParseFailed: true,
+            error: typeof polled.error === 'string' ? polled.error : 'failed',
+            rawText: typeof polled.rawText === 'string' ? polled.rawText : '',
+          })
+          setDraft(aiDataToDraft(null, { parseFailed: true }))
+          setPhase('review')
+          return
+        }
+        data = polled
+      }
+
       // --- CASE: Server responded, but with an ERROR (e.g. 500, 400) ---
       if (!res.ok) {
         toast.error(data.error || 'Upload failed');
