@@ -38,7 +38,65 @@ const DASH_OVERVIEW_LIMIT = 10
 const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
 const RECEIPT_QUEUE_STORAGE_KEY = 'paper-brain:receipt-batch-poll'
 
-/** After `202` from `/api/receipt/upload`, poll until Inngest finishes (same overall timeout budget). */
+function bullMqFifoRunnerState(st) {
+  return st === 'active' || st === 'prioritized'
+}
+
+/**
+ * BullMQ may report multiple `active` jobs (several workers) or mix `active` with `prioritized`.
+ * FIFO: only the first runner keeps its state; the rest are shown as `waiting`.
+ */
+function normalizeReceiptBullJobsFifo(jobs) {
+  if (!Array.isArray(jobs)) return []
+  let seenRunner = false
+  return jobs.map((row) => {
+    if (row && bullMqFifoRunnerState(row.state)) {
+      if (!seenRunner) {
+        seenRunner = true
+        return row
+      }
+      return { ...row, state: 'waiting' }
+    }
+    return row
+  })
+}
+
+function summarizeReceiptBullJobs(jobs) {
+  const list = Array.isArray(jobs) ? jobs : []
+  let completed = 0
+  let failed = 0
+  let processing = 0
+  let waiting = 0
+  for (const row of list) {
+    const st = row?.state
+    if (bullMqFifoRunnerState(st)) processing += 1
+    else if (st === 'failed') failed += 1
+    else if (st === 'completed' || st === 'missing') completed += 1
+    else if (
+      st === 'waiting' ||
+      st === 'delayed' ||
+      st === 'waiting-children' ||
+      st === 'paused'
+    ) {
+      waiting += 1
+    } else {
+      waiting += 1
+    }
+  }
+  if (processing > 1) {
+    waiting += processing - 1
+    processing = 1
+  }
+  return {
+    total: list.length,
+    completed,
+    processing,
+    waiting,
+    failed,
+  }
+}
+
+/** After `202` from `/api/receipt/upload`, poll job until completed (BullMQ job id or legacy upload job id). */
 async function pollReceiptUploadStatus(authFetch, receiptId, signal) {
   const deadline = Date.now() + RECEIPT_UPLOAD_TIMEOUT_MS - 4000
   while (Date.now() < deadline) {
@@ -366,8 +424,12 @@ export default function MainApp() {
       try {
         const r = await authFetch(`/api/receipt/jobs-status?ids=${ids.join(',')}`)
         const data = await r.json().catch(() => ({}))
-        if (cancelled || !r.ok || !data.success || !data.summary) return
-        const s = data.summary
+        if (cancelled || !r.ok || !data.success) return
+        const rawJobs = Array.isArray(data.jobs) ? data.jobs : []
+        const jobsNorm = normalizeReceiptBullJobsFifo(rawJobs)
+        const s0 = summarizeReceiptBullJobs(jobsNorm)
+        const total = ids.length
+        const s = { ...s0, total }
         const queueIdle =
           s.total > 0 &&
           s.processing === 0 &&
@@ -379,7 +441,7 @@ export default function MainApp() {
           return {
             ...prev,
             summary: s,
-            jobs: Array.isArray(data.jobs) ? data.jobs : prev.jobs,
+            jobs: Array.isArray(data.jobs) ? jobsNorm : prev.jobs,
             idle: queueIdle,
           }
         })
