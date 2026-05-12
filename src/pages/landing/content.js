@@ -68,23 +68,25 @@ export const pricingTeaser = [
       price: '$0',
       description: 'Perfect for getting started with basic organization.',
       features: [
-        '5 receipt scans per month',
+        '5 receipt scans per day',
         'Basic data extraction',
         'Standard dashboard access',
-        'Community support'
+        'AI-powered expense chat',
+        'confidence score for each expense',
       ],
       buttonText: 'Start for free',
       popular: false,
     },
     {
       name: 'Pro',
-      price: '$12',
+      price: '$50/month',
       description: 'Advanced AI features for power users.',
       features: [
         'Unlimited receipt scans',
         'City & Country detection',
-        'RAG-powered expense chat',
-        'Priority export & support'
+        'Confidence score for each expense',
+        'AI-powered expense chat',
+        'Priority export & support',
       ],
       buttonText: 'Upgrade to Pro',
       popular: true, // Highlight this plan

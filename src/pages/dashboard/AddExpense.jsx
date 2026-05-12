@@ -109,9 +109,13 @@ export function AddExpense({
 
   const jobs = receiptBatchProgress?.mergedJobs ?? []
   const waiting = jobs.filter((j) =>
-    ['waiting', 'delayed', 'paused', 'unknown'].includes(j.state),
+    ['waiting', 'delayed', 'waiting-children', 'paused', 'unknown'].includes(
+      j.state,
+    ),
   )
-  const processing = jobs.filter((j) => j.state === 'active')
+  const processing = jobs.filter(
+    (j) => j.state === 'active' || j.state === 'prioritized',
+  )
   const completed = jobs.filter((j) => j.state === 'completed' || j.state === 'missing')
   const failed = jobs.filter((j) => j.state === 'failed')
   const scanBusy = uploading || Boolean(receiptBatchProgress?.batchPostBusy)
@@ -119,6 +123,8 @@ export function AddExpense({
   function queueJobRow(j) {
     const label = j.fileName || j.id
     const isFailed = j.state === 'failed'
+    const stateLabel =
+      j.state === 'waiting-children' ? 'queued' : j.state
     return (
       <li
         key={j.id}
@@ -135,7 +141,7 @@ export function AddExpense({
                 : 'shrink-0 font-medium uppercase tracking-wide text-[9px] text-amber-900/80 dark:text-amber-200/80'
             }
           >
-            {j.state}
+            {stateLabel}
           </span>
         </div>
         {j.failedReason ? (
