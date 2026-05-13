@@ -102,6 +102,12 @@ export function AddExpense({
   )
 
   const s = receiptBatchProgress?.summary
+  const queueSending =
+    Boolean(receiptBatchProgress?.queuePlaceholder) ||
+    Boolean(receiptBatchProgress?.batchPostBusy)
+  const showUploadQueueCard =
+    receiptBatchProgress &&
+    (s || Boolean(receiptBatchProgress.queuePlaceholder))
   const batchPct =
     s && s.total > 0
       ? Math.round(((s.completed + s.failed) / s.total) * 100)
@@ -697,7 +703,7 @@ export function AddExpense({
             )}
           </div>
 
-          {receiptBatchProgress && s ? (
+          {showUploadQueueCard ? (
             <div
               className={`${cardCls} border-amber-200 bg-amber-50/90 p-2.5 text-left text-amber-950 sm:p-2.5 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-100`}
               role="status"
@@ -719,73 +725,84 @@ export function AddExpense({
                   </button>
                 ) : null}
               </div>
-              <dl className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
-                <div>
-                  <dt className="text-amber-800/75 dark:text-amber-300/75">Tot</dt>
-                  <dd className="m-0 text-xs font-semibold tabular-nums">{s.total}</dd>
-                </div>
-                <div>
-                  <dt className="text-amber-800/75 dark:text-amber-300/75">Done</dt>
-                  <dd className="m-0 text-xs font-semibold tabular-nums text-emerald-800 dark:text-emerald-300">
-                    {s.completed}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-amber-800/75 dark:text-amber-300/75">Run</dt>
-                  <dd className="m-0 text-xs font-semibold tabular-nums">{s.processing}</dd>
-                </div>
-                <div>
-                  <dt className="text-amber-800/75 dark:text-amber-300/75">Wait</dt>
-                  <dd className="m-0 text-xs font-semibold tabular-nums">{s.waiting}</dd>
-                </div>
-                <div>
-                  <dt className="text-amber-800/75 dark:text-amber-300/75">Fail</dt>
-                  <dd className="m-0 text-xs font-semibold tabular-nums text-red-800 dark:text-red-300">
-                    {s.failed}
-                  </dd>
-                </div>
-              </dl>
-              <div
-                className="mt-2 h-1 overflow-hidden rounded-full bg-amber-200/80 dark:bg-amber-900/50"
-                aria-hidden
-              >
-                <div
-                  className="h-1 rounded-full bg-amber-600 transition-[width] duration-300 dark:bg-amber-400"
-                  style={{ width: `${batchPct}%` }}
-                />
-              </div>
-              {receiptBatchProgress.idle ? (
+              {queueSending ? (
+                <p className="mt-2 mb-0 flex items-center gap-2 text-[11px] font-medium text-amber-900 dark:text-amber-100">
+                  <InlineSpinner className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" />
+                  Sending to the server queue… counts appear as soon as jobs are registered.
+                </p>
+              ) : (
+                <>
+                  <dl className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
+                    <div>
+                      <dt className="text-amber-800/75 dark:text-amber-300/75">Tot</dt>
+                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.total}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-amber-800/75 dark:text-amber-300/75">Done</dt>
+                      <dd className="m-0 text-xs font-semibold tabular-nums text-emerald-800 dark:text-emerald-300">
+                        {s.completed}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-amber-800/75 dark:text-amber-300/75">Run</dt>
+                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.processing}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-amber-800/75 dark:text-amber-300/75">Wait</dt>
+                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.waiting}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-amber-800/75 dark:text-amber-300/75">Fail</dt>
+                      <dd className="m-0 text-xs font-semibold tabular-nums text-red-800 dark:text-red-300">
+                        {s.failed}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div
+                    className="mt-2 h-1 overflow-hidden rounded-full bg-amber-200/80 dark:bg-amber-900/50"
+                    aria-hidden
+                  >
+                    <div
+                      className="h-1 rounded-full bg-amber-600 transition-[width] duration-300 dark:bg-amber-400"
+                      style={{ width: `${batchPct}%` }}
+                    />
+                  </div>
+                </>
+              )}
+              {!queueSending && receiptBatchProgress.idle ? (
                 <p className="mt-1.5 mb-0 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
                   Session queue idle — add more anytime.
                 </p>
               ) : null}
-              <div
-                className={`mt-2 space-y-2 overflow-y-auto text-left ${
-                  failed.length > 0 ? 'max-h-48' : 'max-h-28'
-                }`}
-              >
-                {[
-                  ['failed', 'Failed', true, failed],
-                  ['processing', 'Processing', false, processing],
-                  ['waiting', 'Waiting', false, waiting],
-                  ['completed', 'Completed', false, completed],
-                ].map(([id, title, isFailed, items]) =>
-                  items.length === 0 ? null : (
-                    <div key={id}>
-                      <p
-                        className={
-                          isFailed
-                            ? 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-800/90 dark:text-red-300/90'
-                            : 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-900/90 dark:text-amber-200/90'
-                        }
-                      >
-                        {title}
-                      </p>
-                      <ul className="m-0 list-none p-0">{items.map(queueJobRow)}</ul>
-                    </div>
-                  ),
-                )}
-              </div>
+              {!queueSending ? (
+                <div
+                  className={`mt-2 space-y-2 overflow-y-auto text-left ${
+                    failed.length > 0 ? 'max-h-48' : 'max-h-28'
+                  }`}
+                >
+                  {[
+                    ['failed', 'Failed', true, failed],
+                    ['processing', 'Processing', false, processing],
+                    ['waiting', 'Waiting', false, waiting],
+                    ['completed', 'Completed', false, completed],
+                  ].map(([id, title, isFailed, items]) =>
+                    items.length === 0 ? null : (
+                      <div key={id}>
+                        <p
+                          className={
+                            isFailed
+                              ? 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-800/90 dark:text-red-300/90'
+                              : 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-900/90 dark:text-amber-200/90'
+                          }
+                        >
+                          {title}
+                        </p>
+                        <ul className="m-0 list-none p-0">{items.map(queueJobRow)}</ul>
+                      </div>
+                    ),
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </aside>

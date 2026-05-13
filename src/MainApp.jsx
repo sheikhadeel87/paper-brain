@@ -254,7 +254,17 @@ export default function MainApp() {
   }, [])
 
   const receiptBatchProgress = useMemo(() => {
-    if (!receiptBatchPoll?.sessionKey) return null
+    if (!receiptBatchPoll?.sessionKey) {
+      if (!receiptBatchPostBusy) return null
+      return {
+        mergedJobs: [],
+        summary: null,
+        idle: false,
+        batchPostBusy: true,
+        queuePlaceholder: true,
+        onDismissQueue: null,
+      }
+    }
     const { jobIds, jobs, fileNamesById, summary, idle } = receiptBatchPoll
     const jobMap = new Map((jobs || []).map((j) => [String(j.id), j]))
     const mergedJobs = jobIds.map((id) => {
@@ -292,8 +302,9 @@ export default function MainApp() {
     return {
       mergedJobs,
       summary: totals,
-      idle: Boolean(idle),
+      idle: Boolean(idle) && !receiptBatchPostBusy,
       batchPostBusy: receiptBatchPostBusy,
+      queuePlaceholder: false,
       onDismissQueue: dismissReceiptQueue,
     }
   }, [receiptBatchPoll, receiptBatchPostBusy, dismissReceiptQueue])
@@ -1030,7 +1041,6 @@ export default function MainApp() {
   async function runReceiptBatchUpload(files) {
     if (!files.length) return
     setSaveError('')
-    setReceiptBatchPostBusy(true)
     try {
       const prevIds = receiptBatchPollRef.current?.jobIds ?? []
       const fd = new FormData()
@@ -1108,6 +1118,8 @@ export default function MainApp() {
           ...prev,
           jobIds: mergedIds,
           fileNamesById: { ...prev.fileNamesById, ...nameMap },
+          summary: null,
+          jobs: [],
           idle: false,
         }
       })
@@ -1119,8 +1131,6 @@ export default function MainApp() {
       setInputKey((k) => k + 1)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Queue request failed.')
-    } finally {
-      setReceiptBatchPostBusy(false)
     }
   }
 
@@ -1148,29 +1158,34 @@ export default function MainApp() {
       )
     }
 
-    const MAX_QUEUE_PREVIEW = 60
-    const mergedFiles = [...receiptSessionPickedFilesRef.current, ...list].slice(
-      -MAX_QUEUE_PREVIEW,
-    )
-    receiptSessionPickedFilesRef.current = mergedFiles
-
-    const oldQueue = receiptQueuePreviewUrlsRef.current.slice()
-    oldQueue.forEach((u) => URL.revokeObjectURL(u))
-    if (receiptBlobRef.current) {
-      URL.revokeObjectURL(receiptBlobRef.current)
-      receiptBlobRef.current = null
-    }
-    setReceiptPreviewUrl(null)
-    const next = mergedFiles.map((f) => URL.createObjectURL(f))
-    receiptQueuePreviewUrlsRef.current = next
-    setReceiptQueuePreviewUrls(next)
-    if (list.length > MAX_QUEUE_PREVIEW) {
-      toast.success(
-        `Preview gallery shows the first ${MAX_QUEUE_PREVIEW} images; all ${list.length} files were queued.`,
+    setReceiptBatchPostBusy(true)
+    try {
+      const MAX_QUEUE_PREVIEW = 60
+      const mergedFiles = [...receiptSessionPickedFilesRef.current, ...list].slice(
+        -MAX_QUEUE_PREVIEW,
       )
-    }
+      receiptSessionPickedFilesRef.current = mergedFiles
 
-    await runReceiptBatchUpload(list)
+      const oldQueue = receiptQueuePreviewUrlsRef.current.slice()
+      oldQueue.forEach((u) => URL.revokeObjectURL(u))
+      if (receiptBlobRef.current) {
+        URL.revokeObjectURL(receiptBlobRef.current)
+        receiptBlobRef.current = null
+      }
+      setReceiptPreviewUrl(null)
+      const next = mergedFiles.map((f) => URL.createObjectURL(f))
+      receiptQueuePreviewUrlsRef.current = next
+      setReceiptQueuePreviewUrls(next)
+      if (list.length > MAX_QUEUE_PREVIEW) {
+        toast.success(
+          `Preview gallery shows the first ${MAX_QUEUE_PREVIEW} images; all ${list.length} files were queued.`,
+        )
+      }
+
+      await runReceiptBatchUpload(list)
+    } finally {
+      setReceiptBatchPostBusy(false)
+    }
   }
 
   function retryReceiptScan() {
