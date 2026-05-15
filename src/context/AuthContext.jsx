@@ -58,7 +58,7 @@ export function AuthProvider({ children }) {
       throw new Error(res.error || 'Login failed')
     }
     persistSession(res.token, res.user)
-    return res.user
+    return { user: res.user, token: res.token }
   }, [persistSession])
 
   const register = useCallback(async (name, email, password) => {
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
       throw new Error(res.error || 'Registration failed')
     }
     persistSession(res.token, res.user)
-    return res.user
+    return { user: res.user, token: res.token }
   }, [persistSession])
 
   const logout = useCallback(() => {
@@ -76,6 +76,35 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
   }, [])
+
+  const refreshUser = useCallback(async () => {
+    if (!token) return null
+    const res = await meRequest(token)
+    if (res.ok && res.success && res.user) {
+      setUser(res.user)
+      localStorage.setItem(USER_KEY, JSON.stringify(res.user))
+      return res.user
+    }
+    return null
+  }, [token])
+
+  /** Poll /api/auth/me until plan is pro (webhook may lag a few seconds after checkout). */
+  const refreshUserUntilPro = useCallback(
+    async ({ maxAttempts = 15, intervalMs = 1000 } = {}) => {
+      let last = null
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        last = await refreshUser()
+        if (last?.plan === 'pro') return last
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, intervalMs)
+          })
+        }
+      }
+      return last
+    },
+    [refreshUser],
+  )
 
   const authFetch = useCallback(
     (input, init = {}) => {
@@ -96,9 +125,21 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
+      refreshUser,
+      refreshUserUntilPro,
       authFetch,
     }),
-    [token, user, bootstrapping, login, register, logout, authFetch],
+    [
+      token,
+      user,
+      bootstrapping,
+      login,
+      register,
+      logout,
+      refreshUser,
+      refreshUserUntilPro,
+      authFetch,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

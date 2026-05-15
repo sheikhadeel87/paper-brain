@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
+import { createCheckoutSessionWithToken } from '../services/billingService.js'
 import {
   btnBase,
   btnPrimary,
@@ -30,7 +31,12 @@ export default function LoginPage() {
     setError('')
     setBusy(true)
     try {
-      await login(email, password)
+      const result = await login(email, password)
+      if (location.state?.checkoutPlan === 'pro') {
+        const url = await createCheckoutSessionWithToken(result.token)
+        window.location.assign(url)
+        return
+      }
       const from =
         typeof location.state?.from === 'string' ? location.state.from : ''
       navigate(from || '/dashboard', { replace: true })
@@ -92,6 +98,7 @@ export default function LoginPage() {
           No account?{' '}
           <Link
             to="/register"
+            state={location.state}
             className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400"
           >
             Register

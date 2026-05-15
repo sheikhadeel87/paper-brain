@@ -247,6 +247,42 @@ function CloseMenuIcon() {
   )
 }
 
+function formatSubscriptionPeriodEnd(raw) {
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function planBadgeForUser(user) {
+  if (!user || user.plan !== 'pro') {
+    return {
+      label: 'Free',
+      className:
+        'rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200',
+    }
+  }
+  const periodEndLabel = formatSubscriptionPeriodEnd(user.subscriptionCurrentPeriodEnd)
+  if (user.subscriptionCancelAtPeriodEnd) {
+    const label = periodEndLabel ? `Pro · ends ${periodEndLabel}` : 'Pro · ends soon'
+    return {
+      label,
+      className:
+        'max-w-[11rem] truncate rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold leading-tight text-amber-900 dark:bg-amber-900/35 dark:text-amber-100',
+    }
+  }
+  const label = periodEndLabel ? `Pro until ${periodEndLabel}` : 'Pro'
+  return {
+    label,
+    className:
+      'max-w-[11rem] truncate rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold leading-tight text-violet-700 dark:bg-violet-900/40 dark:text-violet-200',
+  }
+}
+
 export function AppChrome({
   mainTab,
   dashboardPanel = 'overview',
@@ -254,10 +290,13 @@ export function AppChrome({
   children,
   modal,
   user = null,
+  onManageBilling,
+  onUpgradePlan,
   onLogout,
 }) {
   const navigate = useNavigate()
   const [mobileNav, setMobileNav] = useState(false)
+  const planBadge = planBadgeForUser(user)
 
   useEffect(() => {
     if (!mobileNav) return
@@ -405,7 +444,30 @@ export function AppChrome({
                 {user?.email || '—'}
               </div>
             </div>
+            <span
+              title={planBadge.label}
+              className={planBadge.className}
+            >
+              {planBadge.label}
+            </span>
           </div>
+          {user?.plan === 'pro' ? (
+            <button
+              type="button"
+              className="w-full rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-medium text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
+              onClick={onManageBilling}
+            >
+              Manage billing
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="w-full rounded-lg bg-violet-600 px-3 py-2 text-left text-sm font-semibold text-white transition hover:bg-violet-700"
+              onClick={onUpgradePlan}
+            >
+              Upgrade to Pro
+            </button>
+          )}
           {typeof onLogout === 'function' ? (
             <button
               type="button"

@@ -1,6 +1,7 @@
 /** Canonical URLs for the logged-in shell (no `/app` prefix). */
 export const APP_PATHS = {
   dashboard: '/dashboard',
+  success: '/success',
   addExpense: '/add-expense',
   expenses: '/expenses',
   receipts: '/receipts',

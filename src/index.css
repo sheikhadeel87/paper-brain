@@ -11,3 +11,33 @@
     @apply flex min-h-svh w-full flex-1 flex-col bg-zinc-100 dark:bg-zinc-950;
   }
 }
+
+@keyframes freeTierToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes freeTierToastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+.free-tier-toast-enter {
+  animation: freeTierToastIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.free-tier-toast-leave {
+  animation: freeTierToastOut 0.28s ease-in forwards;
+}

@@ -8,6 +8,7 @@ const MainApp = lazy(() => import('./MainApp.jsx'))
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'))
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'))
+const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.jsx'))
 
 function RouteFallback() {
   return (
@@ -38,6 +39,14 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/success"
+            element={
+              <ProtectedRoute>
+                <CheckoutSuccessPage />
+              </ProtectedRoute>
+            }
+          />
           {/* Must be before /:appSection so /app is not captured as segment "app". */}
           <Route path="/app" element={<Navigate to="/dashboard" replace />} />
           <Route path="/app/dashboard" element={<Navigate to="/dashboard" replace />} />
