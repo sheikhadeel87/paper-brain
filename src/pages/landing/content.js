@@ -64,6 +64,7 @@ export const pricingTeaser = [
   // body: 'Create a free account to try the full flow. No credit card required for the MVP — you bring your own API keys where needed.',
 
     {
+      id: 'free',
       name: 'Free',
       price: '$0',
       description: 'Perfect for getting started with basic organization.',
@@ -78,12 +79,13 @@ export const pricingTeaser = [
       popular: false,
     },
     {
+      id: 'pro',
       name: 'Pro',
-      price: '$50/month',
+      price: '$50', // Keep the number clean for logic
       description: 'Advanced AI features for power users.',
       features: [
         'Unlimited receipt scans',
-        'City & Country detection',
+        'Unlimited expenses',
         'Confidence score for each expense',
         'AI-powered expense chat',
         'Priority export & support',

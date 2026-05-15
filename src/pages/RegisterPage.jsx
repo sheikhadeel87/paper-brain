@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
+import { createCheckoutSessionWithToken } from '../services/billingService.js'
 import {
   btnBase,
   btnPrimary,
@@ -12,6 +13,7 @@ import {
 export default function RegisterPage() {
   const { register, token } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -27,7 +29,12 @@ export default function RegisterPage() {
     setError('')
     setBusy(true)
     try {
-      await register(name, email, password)
+      const result = await register(name, email, password)
+      if (location.state?.checkoutPlan === 'pro') {
+        const url = await createCheckoutSessionWithToken(result.token)
+        window.location.assign(url)
+        return
+      }
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
@@ -98,6 +105,7 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link
             to="/login"
+            state={location.state}
             className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400"
           >
             Sign in

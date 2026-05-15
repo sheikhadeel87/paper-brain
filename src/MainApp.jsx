@@ -22,8 +22,17 @@ import {
   primaryPathSegment,
 } from './lib/appRoutes.js'
 import { receiptImageFileWithinLimits } from './lib/receiptImageAccept.js'
+import {
+  FREE_TIER_LIMIT_FALLBACK_MESSAGE,
+  isFreeTierDailyLimitResponse,
+} from './lib/receiptUploadLimit.js'
 import { AppChrome } from './components/ExpenseUi'
+import { FreeTierLimitToast } from './components/FreeTierLimitToast.jsx'
 import { AppShellRoutes, ExpenseDetailModal } from './AppViews'
+import {
+  createBillingPortalSession,
+  createCheckoutSession,
+} from './services/billingService.js'
 
 const RECENT_SCAN_LIMIT = 10
 /** Dashboard “All expenses” + Receipts “All receipts”: `limit` / `skip` choices. */
@@ -165,7 +174,7 @@ function readPersistedReceiptBatchPoll() {
 }
 
 export default function MainApp() {
-  const { authFetch, user, logout } = useAuth()
+  const { authFetch, user, logout, refreshUser } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const appSegment = useMemo(
@@ -336,6 +345,25 @@ export default function MainApp() {
     LIST_PAGE_SIZE_OPTIONS[0],
   )
   const prevDashPanelRef = useRef(dashboardPanel)
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('billing') !== '1') return
+    let cancelled = false
+    ;(async () => {
+      await refreshUser()
+      if (cancelled) return
+      params.delete('billing')
+      const qs = params.toString()
+      navigate(
+        { pathname: location.pathname, search: qs ? `?${qs}` : '' },
+        { replace: true },
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname, location.search, navigate, refreshUser])
 
   useEffect(() => {
     const prev = prevReceiptPanelRef.current
@@ -852,6 +880,31 @@ export default function MainApp() {
     }
   }
 
+  function showFreeTierDailyLimitToast(data) {
+    const msg =
+      typeof data?.error === 'string' ? data.error : FREE_TIER_LIMIT_FALLBACK_MESSAGE
+    toast.custom(
+      (t) => (
+        <FreeTierLimitToast
+          t={t}
+          message={msg}
+          used={typeof data?.used === 'number' ? data.used : 5}
+          limit={typeof data?.limit === 'number' ? data.limit : 5}
+          onUpgrade={() => void openCheckout()}
+        />
+      ),
+      {
+        duration: 14_000,
+        style: {
+          background: 'transparent',
+          boxShadow: 'none',
+          padding: 0,
+          maxWidth: 'none',
+        },
+      },
+    )
+  }
+
   async function runReceiptUpload(file, { keepPreview = false } = {}) {
     if (!file) return;
   
@@ -949,6 +1002,11 @@ export default function MainApp() {
 
       // --- CASE: Server responded, but with an ERROR (e.g. 500, 400) ---
       if (!res.ok) {
+        if (isFreeTierDailyLimitResponse(res, data)) {
+          showFreeTierDailyLimitToast(data)
+          setPhase('upload')
+          return
+        }
         toast.error(data.error || 'Upload failed');
         setMultiReceiptQueue(null)
         setReceiptDraftId('')
@@ -1052,7 +1110,15 @@ export default function MainApp() {
         body: fd,
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data.success || !Array.isArray(data.jobIds)) {
+      if (isFreeTierDailyLimitResponse(res, data)) {
+        showFreeTierDailyLimitToast(data)
+        return
+      }
+      if (
+        !res.ok ||
+        !data.success ||
+        (!data.processedInline && !Array.isArray(data.jobIds))
+      ) {
         toast.error(
           typeof data.error === 'string' ? data.error : 'Could not queue uploads.',
         )
@@ -1334,6 +1400,24 @@ export default function MainApp() {
     setInputKey((k) => k + 1)
   }
 
+  async function openCheckout() {
+    try {
+      const url = await createCheckoutSession(authFetch)
+      window.location.assign(url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to start checkout.')
+    }
+  }
+
+  async function openBillingPortal() {
+    try {
+      const url = await createBillingPortalSession(authFetch)
+      window.location.assign(url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to open billing portal.')
+    }
+  }
+
   if (!parsed) {
     return <Navigate to="/dashboard" replace />
   }
@@ -1344,6 +1428,8 @@ export default function MainApp() {
       dashboardPanel={dashboardPanel}
       receiptPanel={receiptPanel}
       user={user}
+      onManageBilling={openBillingPortal}
+      onUpgradePlan={openCheckout}
       onLogout={logout}
       modal={
         <ExpenseDetailModal

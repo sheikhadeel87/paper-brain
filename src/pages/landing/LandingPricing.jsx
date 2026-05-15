@@ -20,11 +20,41 @@
 //     </section>
 //   )
 // }
-import { Check } from 'lucide-react';
-import { pricingTeaser } from './content.js';
-import { cardCls } from '../../lib/uiClasses.js';
+import { useState } from 'react'
+import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
+import { Check } from 'lucide-react'
+import { pricingTeaser } from './content.js'
+import { useAuth } from '../../context/useAuth.js'
+import { cardCls } from '../../lib/uiClasses.js'
+import { createCheckoutSession } from '../../services/billingService.js'
 
 export function LandingPricing() {
+  const navigate = useNavigate()
+  const { token, authFetch } = useAuth()
+  const [loadingPlan, setLoadingPlan] = useState('')
+
+  async function handlePlanClick(plan) {
+    if (plan.id === 'free') {
+      navigate(token ? '/dashboard' : '/register')
+      return
+    }
+
+    if (!token) {
+      navigate('/register', { state: { checkoutPlan: 'pro' } })
+      return
+    }
+
+    setLoadingPlan(plan.id)
+    try {
+      const url = await createCheckoutSession(authFetch)
+      window.location.assign(url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to start checkout.')
+      setLoadingPlan('')
+    }
+  }
+
   return (
     <section id="pricing" className="scroll-mt-20 bg-zinc-50 px-4 py-16 dark:bg-zinc-900/50 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-4xl text-center">
@@ -69,17 +99,21 @@ export function LandingPricing() {
                 ))}
               </ul>
 
-              <button className={`w-full rounded-xl py-3 px-4 text-sm font-bold transition-all ${
+              <button
+                type="button"
+                disabled={loadingPlan === plan.id}
+                onClick={() => handlePlanClick(plan)}
+                className={`w-full rounded-xl py-3 px-4 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
                 plan.popular 
                 ? 'bg-violet-600 text-white hover:bg-violet-700 shadow-md shadow-violet-200 dark:shadow-none' 
                 : 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100'
               }`}>
-                {plan.buttonText}
+                {loadingPlan === plan.id ? 'Redirecting…' : plan.buttonText}
               </button>
             </div>
           ))}
         </div>
       </div>
     </section>
-  );
+  )
 }
