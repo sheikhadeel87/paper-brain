@@ -9,6 +9,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage.jsx'))
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'))
 const CheckoutSuccessPage = lazy(() => import('./pages/CheckoutSuccessPage.jsx'))
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage.jsx'))
 
 function RouteFallback() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
           <Route
             path="/success"
             element={

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
 import { createCheckoutSessionWithToken } from '../services/billingService.js'
+import { resendVerificationRequest } from '../services/authService.js'
 import {
   btnBase,
   btnPrimary,
@@ -21,6 +22,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState(defaultPassword)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendBusy, setResendBusy] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
 
   if (token) {
     return <Navigate to="/dashboard" replace />
@@ -29,6 +33,8 @@ export default function LoginPage() {
   async function onSubmit(e) {
     e.preventDefault()
     setError('')
+    setNeedsVerification(false)
+    setResendMsg('')
     setBusy(true)
     try {
       const result = await login(email, password)
@@ -41,9 +47,27 @@ export default function LoginPage() {
         typeof location.state?.from === 'string' ? location.state.from : ''
       navigate(from || '/dashboard', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const message = err instanceof Error ? err.message : 'Login failed'
+      setError(message)
+      if (err instanceof Error && err.code === 'EMAIL_NOT_VERIFIED') {
+        setNeedsVerification(true)
+      }
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function onResendVerification() {
+    if (!email.trim()) return
+    setResendBusy(true)
+    setResendMsg('')
+    try {
+      const res = await resendVerificationRequest(email.trim())
+      setResendMsg(res.message || (res.success ? 'Verification email sent.' : 'Could not resend.'))
+    } catch {
+      setResendMsg('Could not resend verification email.')
+    } finally {
+      setResendBusy(false)
     }
   }
 
@@ -89,6 +113,24 @@ export default function LoginPage() {
             <p className="text-sm font-medium text-red-600 dark:text-red-400">
               {error}
             </p>
+          ) : null}
+          {needsVerification ? (
+            <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-900/60 dark:bg-violet-950/40">
+              <p className="text-sm text-violet-900 dark:text-violet-200">
+                Check your inbox for the verification link, or resend it below.
+              </p>
+              {resendMsg ? (
+                <p className="mt-2 text-sm text-violet-800 dark:text-violet-300">{resendMsg}</p>
+              ) : null}
+              <button
+                type="button"
+                className={`${btnPrimary} mt-3 w-full`}
+                disabled={resendBusy}
+                onClick={onResendVerification}
+              >
+                {resendBusy ? 'Sending…' : 'Resend verification email'}
+              </button>
+            </div>
           ) : null}
           <button type="submit" className={`${btnPrimary} w-full`} disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
