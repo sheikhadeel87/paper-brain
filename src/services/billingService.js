@@ -3,7 +3,9 @@ import { apiUrl } from '../lib/apiBase.js'
 async function parseBillingResponse(response, fallbackMessage) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok || !data.success || !data.url) {
-    throw new Error(data.error || fallbackMessage)
+    const err = new Error(data.error || fallbackMessage)
+    if (data.code) err.code = data.code
+    throw err
   }
   return data.url
 }

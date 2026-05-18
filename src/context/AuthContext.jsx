@@ -30,8 +30,15 @@ export function AuthProvider({ children }) {
       const res = await meRequest(token)
       if (cancelled) return
       if (res.ok && res.success && res.user) {
-        setUser(res.user)
-        localStorage.setItem(USER_KEY, JSON.stringify(res.user))
+        if (res.user.isVerified === false) {
+          setToken('')
+          setUser(null)
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_KEY)
+        } else {
+          setUser(res.user)
+          localStorage.setItem(USER_KEY, JSON.stringify(res.user))
+        }
       } else {
         setToken('')
         setUser(null)
@@ -55,7 +62,9 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const res = await loginRequest(email, password)
     if (!res.ok || !res.success || !res.token || !res.user) {
-      throw new Error(res.error || 'Login failed')
+      const err = new Error(res.error || 'Login failed')
+      if (res.code) err.code = res.code
+      throw err
     }
     persistSession(res.token, res.user)
     return { user: res.user, token: res.token }
@@ -63,7 +72,17 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (name, email, password) => {
     const res = await registerRequest(name, email, password)
-    if (!res.ok || !res.success || !res.token || !res.user) {
+    if (!res.ok || !res.success) {
+      throw new Error(res.error || 'Registration failed')
+    }
+    if (res.needsEmailVerification) {
+      return {
+        needsEmailVerification: true,
+        email: res.email || email,
+        message: res.message || 'Please verify your email.',
+      }
+    }
+    if (!res.token || !res.user) {
       throw new Error(res.error || 'Registration failed')
     }
     persistSession(res.token, res.user)

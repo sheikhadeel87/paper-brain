@@ -22,6 +22,22 @@ export async function registerRequest(name, email, password) {
   return { ok: r.ok, status: r.status, ...data }
 }
 
+export async function verifyEmailRequest(token) {
+  const r = await fetch(apiUrl(`/api/auth/verify-email/${encodeURIComponent(token)}`))
+  const data = await r.json().catch(() => ({}))
+  return { ok: r.ok, status: r.status, ...data }
+}
+
+export async function resendVerificationRequest(email) {
+  const r = await fetch(apiUrl('/api/auth/resend-verification'), {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ email }),
+  })
+  const data = await r.json().catch(() => ({}))
+  return { ok: r.ok, status: r.status, ...data }
+}
+
 export async function meRequest(token) {
   const r = await fetch(apiUrl('/api/auth/me'), {
     headers: { Authorization: `Bearer ${token}` },
