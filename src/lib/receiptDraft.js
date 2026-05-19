@@ -1,4 +1,5 @@
 import { formatKpiMoney } from './dashboardBits.js'
+import { normalizeReceiptCategory } from './receiptCategories.js'
 
 /** Formats a numeric amount with currency (symbol before amount when possible). */
 export function formatDashAmount(value, currency) {
@@ -32,6 +33,8 @@ export function aiDataToDraft(aiData, options = {}) {
       total: '',
       currency: 'USD',
       tax: '',
+      category: 'Other',
+      categorySource: 'AI',
       items: [emptyRow()],
       confidence: '',
       aiConfidence: null,
@@ -80,6 +83,11 @@ export function aiDataToDraft(aiData, options = {}) {
       aiData.tax === null || aiData.tax === undefined || aiData.tax === ''
         ? ''
         : String(aiData.tax),
+    category: normalizeReceiptCategory(aiData.category),
+    categorySource:
+      aiData.categorySource === 'MANUAL' || aiData.categorySource === 'RULE'
+        ? aiData.categorySource
+        : 'AI',
     items,
     confidence: aiC !== null ? aiC : '',
     aiConfidence: aiC,
@@ -118,6 +126,11 @@ export function draftToFinalData(draft, opts = {}) {
     currency: (draft.currency || 'USD').trim() || 'USD',
     tax:
       taxRaw === '' || (taxNum !== null && Number.isNaN(taxNum)) ? null : taxNum,
+    category: normalizeReceiptCategory(draft.category),
+    categorySource:
+      draft.categorySource === 'MANUAL' || draft.categorySource === 'RULE'
+        ? draft.categorySource
+        : 'AI',
     items: draft.items
       .filter(
         (row) =>

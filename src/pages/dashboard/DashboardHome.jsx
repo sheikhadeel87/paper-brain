@@ -17,10 +17,13 @@ export function DashboardHome({
   dashTo,
   dashVendor,
   dashConfidenceFlag = '',
+  dashCategory = '',
   setDashFrom,
   setDashTo,
   setDashVendor,
   setDashConfidenceFlag,
+  setDashCategory,
+  receiptCategories = [],
   dashRows,
   dashTotalCount,
   dashSummary,
@@ -84,10 +87,13 @@ export function DashboardHome({
         dashTo={dashTo}
         dashVendor={dashVendor}
         dashConfidenceFlag={dashConfidenceFlag}
+        dashCategory={dashCategory}
         setDashFrom={setDashFrom}
         setDashTo={setDashTo}
         setDashVendor={setDashVendor}
         setDashConfidenceFlag={setDashConfidenceFlag}
+        setDashCategory={setDashCategory}
+        receiptCategories={receiptCategories}
         dashRows={dashRows}
         dashTotalCount={dashTotalCount}
         dashLoading={dashLoading}

@@ -23,6 +23,10 @@ import {
 } from './lib/appRoutes.js'
 import { receiptImageFileWithinLimits } from './lib/receiptImageAccept.js'
 import {
+  RECEIPT_CATEGORIES,
+  normalizeReceiptCategory,
+} from './lib/receiptCategories.js'
+import {
   FREE_TIER_LIMIT_FALLBACK_MESSAGE,
   isFreeTierDailyLimitResponse,
 } from './lib/receiptUploadLimit.js'
@@ -323,6 +327,7 @@ export default function MainApp() {
   const [dashVendor, setDashVendor] = useState('')
   /** '' = all, `auto` | `review` match Expense.confidenceFlag */
   const [dashConfidenceFlag, setDashConfidenceFlag] = useState('')
+  const [dashCategory, setDashCategory] = useState('')
   const [dashRows, setDashRows] = useState([])
   const [dashTotalCount, setDashTotalCount] = useState(0)
   const [dashSummary, setDashSummary] = useState(null)
@@ -445,6 +450,35 @@ export default function MainApp() {
   useEffect(() => {
     void loadRecent()
   }, [loadRecent])
+
+  async function updateReceiptCategory(receiptId, category) {
+    const id = String(receiptId || '').trim()
+    const nextCategory = normalizeReceiptCategory(category)
+    if (!id) return
+    const previous = recent
+    setRecent((rows) =>
+      rows.map((row) =>
+        String(row._id || row.id || '') === id
+          ? { ...row, category: nextCategory, categorySource: 'MANUAL' }
+          : row,
+      ),
+    )
+    try {
+      const res = await authFetch(`/api/receipt/${encodeURIComponent(id)}/category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: nextCategory }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Category update failed')
+      }
+      if (mainTab === 'dashboard') void runDashboardFetch()
+    } catch (err) {
+      setRecent(previous)
+      toast.error(err instanceof Error ? err.message : 'Category update failed')
+    }
+  }
 
   useEffect(() => {
     const sessionKey = receiptBatchPoll?.sessionKey
@@ -580,6 +614,10 @@ export default function MainApp() {
       override && typeof override.confidenceFlag === 'string'
         ? override.confidenceFlag
         : dashConfidenceFlag
+    const category =
+      override && typeof override.category === 'string'
+        ? override.category
+        : dashCategory
     const p = new URLSearchParams()
     if (from.trim()) p.set('from', from.trim())
     if (to.trim()) p.set('to', to.trim())
@@ -587,8 +625,9 @@ export default function MainApp() {
     if (confidenceFlag === 'auto' || confidenceFlag === 'review') {
       p.set('confidenceFlag', confidenceFlag)
     }
+    if (RECEIPT_CATEGORIES.includes(category)) p.set('category', category)
     return p
-  }, [dashFrom, dashTo, dashVendor, dashConfidenceFlag])
+  }, [dashFrom, dashTo, dashVendor, dashConfidenceFlag, dashCategory])
 
   function expenseQueryString(skip, limit, filterOverride) {
     const p = expenseFilterParams(filterOverride)
@@ -674,6 +713,7 @@ export default function MainApp() {
       dashTo,
       dashVendor,
       dashConfidenceFlag,
+      dashCategory,
     ],
   )
 
@@ -704,9 +744,10 @@ export default function MainApp() {
     setDashTo('')
     setDashVendor('')
     setDashConfidenceFlag('')
+    setDashCategory('')
     setExpensesPage(0)
     void runDashboardFetch({
-      filterOverride: { from: '', to: '', vendor: '', confidenceFlag: '' },
+      filterOverride: { from: '', to: '', vendor: '', confidenceFlag: '', category: '' },
     })
   }
 
@@ -758,15 +799,35 @@ export default function MainApp() {
   }
 
   function dashEditUpdateField(field, value) {
-    setDashEditSession((s) => (s ? { ...s, draft: { ...s.draft, [field]: value } } : s))
+    setDashEditSession((s) =>
+      s
+        ? {
+            ...s,
+            draft: {
+              ...s.draft,
+              [field]: value,
+              ...(field === 'category' ? { categorySource: 'MANUAL' } : {}),
+            },
+          }
+        : s,
+    )
   }
 
   function dashEditUpdateItem(index, field, value) {
     setDashEditSession((s) => {
       if (!s) return s
-      const items = s.draft.items.map((row, i) =>
-        i === index ? { ...row, [field]: value } : row,
-      )
+      const items = s.draft.items.map((row, i) => {
+        if (i !== index) return row
+        const next = { ...row, [field]: value }
+        if (field === 'qty' || field === 'unitPrice') {
+          const q = Number(next.qty)
+          const u = Number(next.unitPrice)
+          if (!Number.isNaN(q) && !Number.isNaN(u)) {
+            next.price = String(q * u)
+          }
+        }
+        return next
+      })
       return { ...s, draft: { ...s.draft, items } }
     })
   }
@@ -1265,16 +1326,33 @@ export default function MainApp() {
 
   function updateField(field, value) {
     setUserEdited(true)
-    setDraft((prev) => (prev ? { ...prev, [field]: value } : prev))
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            [field]: value,
+            ...(field === 'category' ? { categorySource: 'MANUAL' } : {}),
+          }
+        : prev,
+    )
   }
 
   function updateItem(index, key, value) {
     setUserEdited(true)
     setDraft((prev) => {
       if (!prev) return prev
-      const items = prev.items.map((row, i) =>
-        i === index ? { ...row, [key]: value } : row,
-      )
+      const items = prev.items.map((row, i) => {
+        if (i !== index) return row
+        const next = { ...row, [key]: value }
+        if (key === 'qty' || key === 'unitPrice') {
+          const q = Number(next.qty)
+          const u = Number(next.unitPrice)
+          if (!Number.isNaN(q) && !Number.isNaN(u)) {
+            next.price = String(q * u)
+          }
+        }
+        return next
+      })
       return { ...prev, items }
     })
   }
@@ -1451,6 +1529,7 @@ export default function MainApp() {
           dashEditUpdateItem={dashEditUpdateItem}
           dashEditRemoveItemRow={dashEditRemoveItemRow}
           dashEditAddItemRow={dashEditAddItemRow}
+          receiptCategories={RECEIPT_CATEGORIES}
         />
       }
     >
@@ -1473,10 +1552,13 @@ export default function MainApp() {
             dashTo,
             dashVendor,
             dashConfidenceFlag,
+            dashCategory,
             setDashFrom,
             setDashTo,
             setDashVendor,
             setDashConfidenceFlag,
+            setDashCategory,
+            receiptCategories: RECEIPT_CATEGORIES,
             dashRows,
             dashTotalCount,
             dashSummary,
@@ -1540,6 +1622,8 @@ export default function MainApp() {
                 : null,
             receiptReviewHint,
             receiptBatchProgress,
+            receiptCategories: RECEIPT_CATEGORIES,
+            onReceiptCategoryChange: updateReceiptCategory,
           }}
           receiptLibraryProps={{
             recentTotalCount,
@@ -1551,6 +1635,8 @@ export default function MainApp() {
             onGoReceiptScan: () => navigate(APP_PATHS.addExpense),
             recent,
             recentFetchError,
+            receiptCategories: RECEIPT_CATEGORIES,
+            onReceiptCategoryChange: updateReceiptCategory,
           }}
         />
       )}

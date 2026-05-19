@@ -12,6 +12,8 @@ export function ReceiptList({
   onGoReceiptScan,
   recent,
   recentFetchError,
+  receiptCategories = [],
+  onReceiptCategoryChange,
 }) {
   const libraryTotalPages = Math.max(
     1,
@@ -63,6 +65,8 @@ export function ReceiptList({
         <ReceiptHistoryTable
           recent={recent}
           emptyHint="No expenses yet. Use Scan new receipt to add one."
+          categories={receiptCategories}
+          onCategoryChange={onReceiptCategoryChange}
         />
         <PagedNav
           pageIndex={receiptLibraryPage}

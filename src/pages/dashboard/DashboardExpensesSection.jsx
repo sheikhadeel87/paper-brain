@@ -7,6 +7,7 @@ import {
   labelCls,
 } from '../../lib/uiClasses'
 import { currencyDisplayLabel } from '../../lib/dashboardBits'
+import { normalizeReceiptCategory } from '../../lib/receiptCategories'
 import {
   ConfidenceMeter,
   EyeViewIcon,
@@ -33,10 +34,13 @@ export function DashboardExpensesSection({
   dashTo,
   dashVendor,
   dashConfidenceFlag = '',
+  dashCategory = '',
   setDashFrom,
   setDashTo,
   setDashVendor,
   setDashConfidenceFlag,
+  setDashCategory,
+  receiptCategories = [],
   dashRows,
   dashTotalCount,
   dashLoading,
@@ -68,7 +72,9 @@ export function DashboardExpensesSection({
   const noDashFilters =
     !String(dashFrom || '').trim() &&
     !String(dashTo || '').trim() &&
-    !String(dashVendor || '').trim()
+    !String(dashVendor || '').trim() &&
+    !String(dashConfidenceFlag || '').trim() &&
+    !String(dashCategory || '').trim()
 
   return (
     <section
@@ -79,7 +85,7 @@ export function DashboardExpensesSection({
         <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
           Filters
         </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <label className={labelCls}>
             From (created)
             <input
@@ -117,6 +123,21 @@ export function DashboardExpensesSection({
               <option value="">All</option>
               <option value="auto">Auto</option>
               <option value="review">Review</option>
+            </select>
+          </label>
+          <label className={labelCls}>
+            Category
+            <select
+              className={inputCls}
+              value={dashCategory}
+              onChange={(e) => setDashCategory(e.target.value)}
+            >
+              <option value="">All</option>
+              {receiptCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -191,6 +212,9 @@ export function DashboardExpensesSection({
                   Currency
                 </th>
                 <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                  Category
+                </th>
+                <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Date
                 </th>
                 <th className="min-w-[6.5rem] px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
@@ -208,7 +232,7 @@ export function DashboardExpensesSection({
               {dashRows.length === 0 && !dashLoading && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-3 py-6 text-center text-zinc-500 dark:text-zinc-400"
                   >
                     {noDashFilters ? (
@@ -239,6 +263,7 @@ export function DashboardExpensesSection({
                       ? fd.confidence
                       : null
                 const flagRaw = ex.confidenceFlag ?? fd.confidence_flag
+                const category = normalizeReceiptCategory(fd.category)
                 return (
                   <tr
                     key={ex._id}
@@ -261,6 +286,11 @@ export function DashboardExpensesSection({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {fd.currency ? currencyDisplayLabel(fd.currency) : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
+                        {category}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {created || '—'}
