@@ -58,6 +58,8 @@ export function AddExpense({
   multiReceiptInfo = null,
   receiptReviewHint = '',
   receiptBatchProgress = null,
+  receiptCategories = [],
+  onReceiptCategoryChange,
 }) {
   const [queueGalleryOpen, setQueueGalleryOpen] = useState(false)
 
@@ -349,6 +351,20 @@ export function AddExpense({
                     onChange={(e) => updateField('tax', e.target.value)}
                   />
                 </label>
+                <label className={`${labelCls} sm:col-span-2`}>
+                  Category
+                  <select
+                    className={inputCls}
+                    value={draft.category || 'Other'}
+                    onChange={(e) => updateField('category', e.target.value)}
+                  >
+                    {receiptCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -578,6 +594,8 @@ export function AddExpense({
               recent={recent}
               title="Recent receipts"
               emptyHint="No recent receipts."
+              categories={receiptCategories}
+              onCategoryChange={onReceiptCategoryChange}
             />
           ) : null}
         </div>

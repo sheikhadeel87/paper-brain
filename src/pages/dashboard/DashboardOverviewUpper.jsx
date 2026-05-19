@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cardCls } from '../../lib/uiClasses'
 import {
   currencyDisplayLabel,
@@ -7,6 +8,16 @@ import { CurrencyDonut } from '../../components/ExpenseUi'
 import { DASH_CURRENCY_CARD_LIMIT } from './useDashboardKpis'
 
 export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
+  const [spendingGroup, setSpendingGroup] = useState('category')
+  const spendingSlices =
+    spendingGroup === 'currency'
+      ? dashKpis.currencyDonutSlices
+      : dashKpis.categoryDonutSlices
+  const spendingTotal =
+    spendingGroup === 'currency'
+      ? dashKpis.sumTotalsShown
+      : dashKpis.categoryTotal
+
   return (
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -120,7 +131,7 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
         <div className={`${cardCls} flex flex-col gap-2`}>
           <div className="flex items-start justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Top currency
+              Top category
             </p>
             <span className="rounded-lg bg-emerald-100 p-1.5 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
               <svg
@@ -138,12 +149,10 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
             </span>
           </div>
           <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {dashKpis.dominant?.cur
-              ? currencyDisplayLabel(dashKpis.dominant.cur)
-              : '—'}
+            {dashKpis.topCategory?.category || '—'}
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {dashKpis.dominant && dashKpis.sumTotals > 0
+            {dashKpis.topCategory && dashKpis.categoryTotal > 0
               ? `${Math.round(dashKpis.topSharePct)}% of recorded totals`
               : '—'}
           </p>
@@ -186,23 +195,35 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               Spending overview
             </h2>
-            <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-              By currency
-            </span>
+            <select
+              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-violet-700 dark:focus:ring-violet-950"
+              value={spendingGroup}
+              onChange={(e) => setSpendingGroup(e.target.value)}
+              aria-label="Spending overview grouping"
+            >
+              <option value="category">By category</option>
+              <option value="currency">By currency</option>
+            </select>
           </div>
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-center">
-            <CurrencyDonut slices={dashKpis.donutSlices} />
+            <CurrencyDonut slices={spendingSlices} />
             <ul className="m-0 w-full max-w-xs list-none space-y-2.5 p-0 text-sm">
-              {dashKpis.donutSlices.length === 0 ? (
+              {spendingSlices.length === 0 ? (
                 <li className="text-zinc-500 dark:text-zinc-400">
                   Apply filters with matching expenses to see the chart.
                 </li>
               ) : (
-                dashKpis.donutSlices.map((s) => {
+                spendingSlices.map((s) => {
                   const pct =
-                    dashKpis.sumTotalsShown > 0
-                      ? Math.round((s.value / dashKpis.sumTotalsShown) * 100)
+                    spendingTotal > 0
+                      ? Math.round((s.value / spendingTotal) * 100)
                       : 0
+                  const label =
+                    spendingGroup === 'currency'
+                      ? currencyDisplayLabel(s.label)
+                      : s.label
+                  const amountCurrency =
+                    spendingGroup === 'currency' ? s.label : dashKpis.dominant?.cur
                   return (
                     <li
                       key={s.label}
@@ -214,10 +235,10 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
                           style={{ backgroundColor: s.color }}
                           aria-hidden
                         />
-                        {currencyDisplayLabel(s.label)}
+                        {label}
                       </span>
                       <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
-                        {formatKpiMoney(s.value, s.label)} · {pct}%
+                        {formatKpiMoney(s.value, amountCurrency)} · {pct}%
                       </span>
                     </li>
                   )

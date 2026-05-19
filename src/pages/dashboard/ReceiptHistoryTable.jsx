@@ -1,7 +1,17 @@
 import { cardCls } from '../../lib/uiClasses'
 import { currencyDisplayLabel } from '../../lib/dashboardBits'
+import {
+  RECEIPT_CATEGORIES,
+  normalizeReceiptCategory,
+} from '../../lib/receiptCategories'
 
-export function ReceiptHistoryTable({ recent, title, emptyHint }) {
+export function ReceiptHistoryTable({
+  recent,
+  title,
+  emptyHint,
+  categories = RECEIPT_CATEGORIES,
+  onCategoryChange,
+}) {
   /** Horizontal scroll on narrow viewports only; no max-height so paged rows fit without a vertical scrollbar. */
   const wrapCls =
     'overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700'
@@ -26,6 +36,9 @@ export function ReceiptHistoryTable({ recent, title, emptyHint }) {
                   Total
                 </th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                  Category
+                </th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Created
                 </th>
               </tr>
@@ -41,6 +54,8 @@ export function ReceiptHistoryTable({ recent, title, emptyHint }) {
                 const created = ex.createdAt
                   ? new Date(ex.createdAt).toLocaleString()
                   : '—'
+                const category = normalizeReceiptCategory(fd.category || ex.category)
+                const receiptId = ex._id || ex.id
                 return (
                   <tr
                     key={ex._id || ex.id || `recent-${i}`}
@@ -54,6 +69,25 @@ export function ReceiptHistoryTable({ recent, title, emptyHint }) {
                       <span className="text-zinc-600 dark:text-zinc-400">
                         {fd.currency ? currencyDisplayLabel(fd.currency) : ''}
                       </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {typeof onCategoryChange === 'function' && receiptId ? (
+                        <select
+                          className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                          value={category}
+                          onChange={(e) => onCategoryChange(receiptId, e.target.value)}
+                        >
+                          {categories.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
+                          {category}
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {created}

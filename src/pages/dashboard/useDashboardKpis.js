@@ -6,6 +6,7 @@ export const DASH_CURRENCY_CARD_LIMIT = 3
 export function useDashboardKpis(dashSummary, dashRows) {
   return useMemo(() => {
     const bc = dashSummary?.byCurrency || {}
+    const byCategory = dashSummary?.byCategory || {}
     const entries = Object.entries(bc)
       .map(([cur, v]) => {
         const total =
@@ -24,12 +25,27 @@ export function useDashboardKpis(dashSummary, dashRows) {
         ? dashSummary.expenseCount
         : 0
     const sumTotals = entries.reduce((a, e) => a + e.total, 0)
-    const dominant =
-      entries.length === 0
+    const categoryEntries = Object.entries(byCategory)
+      .map(([category, v]) => {
+        const total =
+          typeof v.total === 'number' ? v.total : Number(v.total)
+        const count =
+          typeof v.count === 'number' ? v.count : Number(v.count) || 0
+        return {
+          category,
+          total: Number.isNaN(total) ? 0 : total,
+          count: Number.isNaN(count) ? 0 : count,
+        }
+      })
+      .filter((e) => e.category && e.total > 0)
+      .sort((a, b) => b.total - a.total)
+    const categoryTotal = categoryEntries.reduce((a, e) => a + e.total, 0)
+    const topCategory =
+      categoryEntries.length === 0
         ? null
-        : [...entries].sort((a, b) => b.total - a.total)[0]
+        : categoryEntries[0]
     const topSharePct =
-      dominant && sumTotals > 0 ? (dominant.total / sumTotals) * 100 : 0
+      topCategory && categoryTotal > 0 ? (topCategory.total / categoryTotal) * 100 : 0
     const confVals = dashRows
       .map((ex) => {
         const fd = ex.finalData || {}
@@ -87,21 +103,31 @@ export function useDashboardKpis(dashSummary, dashRows) {
     }
 
     const sumTotalsShown = totalsByCurrency.reduce((a, e) => a + e.total, 0)
-    const donutSlices = totalsByCurrency.map((e, i) => ({
+    const categoryDonutSlices = categoryEntries.map((e, i) => ({
+      label: e.category,
+      value: e.total,
+      color: DONUT_COLORS[i % DONUT_COLORS.length],
+    }))
+    const currencyDonutSlices = totalsByCurrency.map((e, i) => ({
       label: e.cur,
       value: e.total,
       color: DONUT_COLORS[i % DONUT_COLORS.length],
     }))
     return {
       entries,
+      categoryEntries,
       expenseCount,
-      dominant,
+      dominant: entries.length === 0 ? null : [...entries].sort((a, b) => b.total - a.total)[0],
+      topCategory,
       topSharePct,
       avgConf,
       reviewInList,
       autoInList: dashRows.length - reviewInList,
-      donutSlices,
+      donutSlices: categoryDonutSlices,
+      categoryDonutSlices,
+      currencyDonutSlices,
       sumTotals,
+      categoryTotal,
       totalsByCurrency,
       totalsByCurrencyAll,
       sumTotalsShown,

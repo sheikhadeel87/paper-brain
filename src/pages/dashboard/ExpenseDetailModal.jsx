@@ -1,5 +1,6 @@
 import { btnBase, btnPrimary, inputCls, labelCls } from '../../lib/uiClasses'
 import { formatDashAmount, needsReviewAcknowledge } from '../../lib/receiptDraft'
+import { normalizeReceiptCategory } from '../../lib/receiptCategories'
 import { ConfidenceMeter, FlagBadge } from '../../components/ExpenseUi'
 
 export function ExpenseDetailModal({
@@ -18,6 +19,7 @@ export function ExpenseDetailModal({
   dashEditUpdateItem,
   dashEditRemoveItemRow,
   dashEditAddItemRow,
+  receiptCategories = [],
 }) {
   if (!dashDetailExpense) return null
 
@@ -158,6 +160,23 @@ export function ExpenseDetailModal({
                     }
                     disabled={dashEditSaving}
                   />
+                </label>
+                <label className={`${labelCls} sm:col-span-2`}>
+                  Category
+                  <select
+                    className={inputCls}
+                    value={dashEditSession.draft.category || 'Other'}
+                    onChange={(e) =>
+                      dashEditUpdateField('category', e.target.value)
+                    }
+                    disabled={dashEditSaving}
+                  >
+                    {receiptCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -394,6 +413,14 @@ export function ExpenseDetailModal({
                         </dt>
                         <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">
                           {formatDashAmount(fd.tax, cur)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                          Category
+                        </dt>
+                        <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">
+                          {normalizeReceiptCategory(fd.category)}
                         </dd>
                       </div>
                       {fd.subtotal != null && fd.subtotal !== '' && (
