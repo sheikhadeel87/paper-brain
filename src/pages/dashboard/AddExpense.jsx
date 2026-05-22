@@ -60,6 +60,7 @@ export function AddExpense({
   receiptBatchProgress = null,
   receiptCategories = [],
   onReceiptCategoryChange,
+  onViewDuplicateReceipt,
 }) {
   const [queueGalleryOpen, setQueueGalleryOpen] = useState(false)
 
@@ -127,6 +128,14 @@ export function AddExpense({
   const completed = jobs.filter((j) => j.state === 'completed' || j.state === 'missing')
   const failed = jobs.filter((j) => j.state === 'failed')
   const scanBusy = uploading || Boolean(receiptBatchProgress?.batchPostBusy)
+  const duplicateWarning =
+    draft?.duplicateWarning && typeof draft.duplicateWarning === 'object'
+      ? draft.duplicateWarning
+      : null
+  const duplicateMatch = duplicateWarning?.matchedReceipt || null
+  const duplicateUploadedAt = duplicateMatch?.createdAt
+    ? new Date(duplicateMatch.createdAt).toLocaleString()
+    : ''
 
   function queueJobRow(j) {
     const label = j.fileName || j.id
@@ -295,6 +304,47 @@ export function AddExpense({
                   role="alert"
                 >
                   {receiptReviewHint}
+                </div>
+              ) : null}
+              {duplicateWarning ? (
+                <div
+                  className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                  role="status"
+                >
+                  <p className="font-semibold">Possible duplicate receipt detected</p>
+                  <p className="mt-1">
+                    {Math.round(Number(duplicateWarning.confidenceScore) || 0)}%
+                    match
+                    {duplicateMatch?.vendor ? ` with ${duplicateMatch.vendor}` : ''}
+                    {duplicateMatch?.total != null ? ` · ${duplicateMatch.total}` : ''}
+                    {duplicateMatch?.currency ? ` ${duplicateMatch.currency}` : ''}
+                    {duplicateUploadedAt ? ` · uploaded ${duplicateUploadedAt}` : ''}.
+                  </p>
+                  {duplicateWarning.duplicateReason ? (
+                    <p className="mt-1 text-xs opacity-85">
+                      {duplicateWarning.duplicateReason}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={btnPrimary}
+                      onClick={() => setConfirmReviewAck(true)}
+                    >
+                      Continue Anyway
+                    </button>
+                    <button
+                      type="button"
+                      className={btnBase}
+                      onClick={() =>
+                        typeof onViewDuplicateReceipt === 'function'
+                          ? onViewDuplicateReceipt(duplicateMatch)
+                          : undefined
+                      }
+                    >
+                      View Existing Receipt
+                    </button>
+                  </div>
                 </div>
               ) : null}
               {(needsReview || !parseOk) && (

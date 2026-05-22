@@ -56,6 +56,14 @@ export function ReceiptHistoryTable({
                   : '—'
                 const category = normalizeReceiptCategory(fd.category || ex.category)
                 const receiptId = ex._id || ex.id
+                const duplicate =
+                  Boolean(ex.possibleDuplicate || fd.possibleDuplicate) ||
+                  Boolean(ex.duplicateWarning || fd.duplicateWarning)
+                const duplicateConfidence =
+                  ex.duplicateConfidence ??
+                  fd.duplicateConfidence ??
+                  ex.duplicateWarning?.confidenceScore ??
+                  fd.duplicateWarning?.confidenceScore
                 return (
                   <tr
                     key={ex._id || ex.id || `recent-${i}`}
@@ -63,6 +71,12 @@ export function ReceiptHistoryTable({
                   >
                     <td className="max-w-[14rem] truncate px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">
                       {fd.vendor || '—'}
+                      {duplicate ? (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                          Possible duplicate
+                          {duplicateConfidence ? ` ${Math.round(Number(duplicateConfidence))}%` : ''}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-zinc-900 dark:text-zinc-100">
                       {fd.total ?? '—'}{' '}

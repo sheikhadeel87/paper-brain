@@ -1624,6 +1624,7 @@ export default function MainApp() {
             receiptBatchProgress,
             receiptCategories: RECEIPT_CATEGORIES,
             onReceiptCategoryChange: updateReceiptCategory,
+            onViewDuplicateReceipt: () => navigate(APP_PATHS.receipts),
           }}
           receiptLibraryProps={{
             recentTotalCount,
