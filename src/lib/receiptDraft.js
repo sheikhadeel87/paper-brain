@@ -35,6 +35,8 @@ export function aiDataToDraft(aiData, options = {}) {
       tax: '',
       category: 'Other',
       categorySource: 'AI',
+      duplicateWarning: null,
+      possibleDuplicate: false,
       items: [emptyRow()],
       confidence: '',
       aiConfidence: null,
@@ -88,6 +90,11 @@ export function aiDataToDraft(aiData, options = {}) {
       aiData.categorySource === 'MANUAL' || aiData.categorySource === 'RULE'
         ? aiData.categorySource
         : 'AI',
+    duplicateWarning:
+      aiData.duplicateWarning && typeof aiData.duplicateWarning === 'object'
+        ? aiData.duplicateWarning
+        : null,
+    possibleDuplicate: Boolean(aiData.possibleDuplicate || aiData.duplicateWarning),
     items,
     confidence: aiC !== null ? aiC : '',
     aiConfidence: aiC,
