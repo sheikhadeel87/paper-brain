@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { MapPin, Users } from 'lucide-react'
+import { ChevronUp, CreditCard, LogOut, MapPin, Sparkles, Users } from 'lucide-react'
 import { APP_PATHS } from '../lib/appRoutes.js'
 import { BrandMark } from './BrandMark.jsx'
 import { ThemeToggle } from './ThemeToggle.jsx'
@@ -299,6 +299,7 @@ export function AppChrome({
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileNav, setMobileNav] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const planBadge = planBadgeForUser(user)
   const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
 
@@ -464,53 +465,97 @@ export function AppChrome({
             </>
           ) : null}
         </nav>
-        <div className="mt-auto space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-          <ThemeToggle />
-          <div className="flex items-center gap-2 px-1 pb-1">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+        <div className="relative mt-auto border-t border-zinc-100 pt-4 dark:border-zinc-800">
+          {accountMenuOpen ? (
+            <div className="absolute bottom-[calc(100%-0.75rem)] left-0 right-0 z-30 overflow-hidden rounded-2xl border border-violet-200/70 bg-white/95 p-2 shadow-2xl shadow-violet-900/15 ring-1 ring-violet-200/60 backdrop-blur-xl dark:border-violet-900/50 dark:bg-zinc-950/95 dark:shadow-black/40 dark:ring-violet-900/40">
+              <div className="rounded-xl bg-gradient-to-br from-violet-50 via-white to-zinc-50 p-3 dark:from-violet-950/40 dark:via-zinc-900 dark:to-zinc-950">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-sm font-bold text-white shadow-lg shadow-violet-600/25">
+                    {user?.name?.trim()?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {user?.name || 'Account'}
+                    </div>
+                    <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {user?.email || '—'}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/70 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/70">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    Theme
+                  </span>
+                  <ThemeToggle />
+                </div>
+              </div>
+              <div className="mt-2 space-y-1">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:text-violet-200 dark:hover:bg-violet-950/40"
+                  onClick={() => {
+                    setAccountMenuOpen(false)
+                    if (user?.plan === 'pro') onManageBilling()
+                    else onUpgradePlan()
+                  }}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                    {user?.plan === 'pro' ? (
+                      <CreditCard className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span>{user?.plan === 'pro' ? 'Manage billing' : 'Upgrade to Pro'}</span>
+                </button>
+                {typeof onLogout === 'function' ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                    onClick={() => {
+                      setAccountMenuOpen(false)
+                      onLogout()
+                    }}
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-300">
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <span>Sign out</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="group flex w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-lg hover:shadow-violet-900/10 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-violet-800 dark:hover:shadow-black/30"
+            onClick={() => setAccountMenuOpen((open) => !open)}
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-sm font-bold text-white shadow-lg shadow-violet-600/25">
               {user?.name?.trim()?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                {user?.name || 'Account'}
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {user?.name || 'Account'}
+                </div>
+                <ChevronUp
+                  className={`h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-violet-500 ${accountMenuOpen ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
               </div>
-              <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                {user?.email || '—'}
+              <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {user?.email || '—'}
+                </div>
+                <span title={planBadge.label} className={`${planBadge.className} shrink-0`}>
+                  {planBadge.label}
+                </span>
               </div>
             </div>
-            <span
-              title={planBadge.label}
-              className={planBadge.className}
-            >
-              {planBadge.label}
-            </span>
-          </div>
-          {user?.plan === 'pro' ? (
-            <button
-              type="button"
-              className="w-full rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-medium text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
-              onClick={onManageBilling}
-            >
-              Manage billing
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="w-full rounded-lg bg-violet-600 px-3 py-2 text-left text-sm font-semibold text-white transition hover:bg-violet-700"
-              onClick={onUpgradePlan}
-            >
-              Upgrade to Pro
-            </button>
-          )}
-          {typeof onLogout === 'function' ? (
-            <button
-              type="button"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              onClick={onLogout}
-            >
-              Sign out
-            </button>
-          ) : null}
+          </button>
         </div>
       </aside>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:min-h-svh">
