@@ -1,4 +1,5 @@
-import { btnBase, inputCls } from '../../lib/uiClasses'
+import { btnBase } from '../../lib/uiClasses'
+import { Select } from '../../components/Select.jsx'
 
 /** Prev/next for server-paged lists (receipts library, expenses). */
 export function PagedNav({
@@ -35,20 +36,18 @@ export function PagedNav({
         {showPageSize ? (
           <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
             <span className="whitespace-nowrap">Rows per page</span>
-            <select
-              className={`${inputCls} max-w-[11rem] py-1.5 pr-8`}
+            <Select
               value={pageSize}
-              onChange={(e) => {
-                const v = Number(e.target.value)
+              onChange={(nextValue) => {
+                const v = Number(nextValue)
                 if (!Number.isNaN(v)) onPageSizeChange(v)
               }}
-            >
-              {pageSizeOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={pageSizeOptions.map((s) => ({
+                value: String(s),
+                label: String(s),
+              }))}
+              buttonClassName="max-w-[11rem] py-1.5"
+            />
           </label>
         ) : null}
       </div>

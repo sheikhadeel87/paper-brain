@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { MapPin, Users } from 'lucide-react'
 import { APP_PATHS } from '../lib/appRoutes.js'
 import { BrandMark } from './BrandMark.jsx'
+import { ThemeToggle } from './ThemeToggle.jsx'
 
 export function EyeViewIcon() {
   return (
@@ -209,8 +211,8 @@ export function CurrencyDonut({ slices }) {
 
 function navBtn(active) {
   return active
-    ? 'w-full rounded-lg bg-violet-100 px-3 py-2 text-left text-sm font-medium text-violet-900 dark:bg-violet-950/60 dark:text-violet-100'
-    : 'w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/80'
+    ? 'flex w-full items-center gap-2 rounded-lg bg-violet-100 px-3 py-2 text-left text-sm font-medium text-violet-900 dark:bg-violet-950/60 dark:text-violet-100'
+    : 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/80'
 }
 
 function MenuIcon() {
@@ -295,8 +297,10 @@ export function AppChrome({
   onLogout,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileNav, setMobileNav] = useState(false)
   const planBadge = planBadgeForUser(user)
+  const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
 
   useEffect(() => {
     if (!mobileNav) return
@@ -327,6 +331,11 @@ export function AppChrome({
     setMobileNav(false)
   }
 
+  function pickPath(path) {
+    navigate(path)
+    setMobileNav(false)
+  }
+
   return (
     <div className="flex min-h-[100dvh] w-full flex-1 flex-col bg-zinc-100 dark:bg-zinc-950 lg:min-h-svh lg:flex-row">
       <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b border-zinc-200 bg-white/95 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/95 lg:hidden">
@@ -346,6 +355,7 @@ export function AppChrome({
             Paper Brain
           </span>
         </div>
+        <ThemeToggle compact />
       </header>
 
       {mobileNav ? (
@@ -430,8 +440,32 @@ export function AppChrome({
           >
             Receipts
           </button>
+          {isAdmin ? (
+            <>
+              <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                Organization
+              </p>
+              <button
+                type="button"
+                className={navBtn(location.pathname === APP_PATHS.teams)}
+                onClick={() => pickPath(APP_PATHS.teams)}
+              >
+                <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 truncate">Teams</span>
+              </button>
+              <button
+                type="button"
+                className={navBtn(location.pathname === APP_PATHS.branches)}
+                onClick={() => pickPath(APP_PATHS.branches)}
+              >
+                <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 truncate">Branches</span>
+              </button>
+            </>
+          ) : null}
         </nav>
         <div className="mt-auto space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+          <ThemeToggle />
           <div className="flex items-center gap-2 px-1 pb-1">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
               {user?.name?.trim()?.charAt(0)?.toUpperCase() || '?'}

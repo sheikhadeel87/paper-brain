@@ -189,6 +189,7 @@ export default function MainApp() {
     () => parseAppSection(appSegment === '' ? null : appSegment),
     [appSegment],
   )
+  const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
 
   const [mainTab, setMainTab] = useState(() => parsed?.mainTab ?? 'dashboard')
   /** `scan` = upload flow (short recent list). `library` = full receipt list from sidebar. */
@@ -328,6 +329,9 @@ export default function MainApp() {
   /** '' = all, `auto` | `review` match Expense.confidenceFlag */
   const [dashConfidenceFlag, setDashConfidenceFlag] = useState('')
   const [dashCategory, setDashCategory] = useState('')
+  const [orgBranchId, setOrgBranchId] = useState('')
+  const [orgManagerQuery, setOrgManagerQuery] = useState('')
+  const [branchOptions, setBranchOptions] = useState([])
   const [dashRows, setDashRows] = useState([])
   const [dashTotalCount, setDashTotalCount] = useState(0)
   const [dashSummary, setDashSummary] = useState(null)
@@ -349,6 +353,28 @@ export default function MainApp() {
   const [expensesPageSize, setExpensesPageSize] = useState(
     LIST_PAGE_SIZE_OPTIONS[0],
   )
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setBranchOptions([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await authFetch('/api/branches')
+        const data = await r.json().catch(() => ({}))
+        if (!cancelled && r.ok && data.success && Array.isArray(data.branches)) {
+          setBranchOptions(data.branches)
+        }
+      } catch {
+        if (!cancelled) setBranchOptions([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authFetch, isAdmin])
   const prevDashPanelRef = useRef(dashboardPanel)
 
   useEffect(() => {
@@ -386,14 +412,35 @@ export default function MainApp() {
     }
   }, [dashboardPanel])
 
+  useEffect(() => {
+    setExpensesPage(0)
+  }, [
+    dashFrom,
+    dashTo,
+    dashVendor,
+    dashConfidenceFlag,
+    dashCategory,
+    orgBranchId,
+    orgManagerQuery,
+  ])
+
+  useEffect(() => {
+    setReceiptLibraryPage(0)
+  }, [orgBranchId, orgManagerQuery])
+
   const loadRecent = useCallback(async () => {
     const isReceiptTab = mainTab === 'receipt'
     const isLibrary = mainTab === 'receipt' && receiptPanel === 'library'
     const limit = isLibrary ? receiptLibraryPageSize : RECENT_SCAN_LIMIT
     const skip = isLibrary ? receiptLibraryPage * receiptLibraryPageSize : 0
+    const params = new URLSearchParams()
+    params.set('limit', String(limit))
+    params.set('skip', String(skip))
+    if (isAdmin && orgBranchId.trim()) params.set('branchId', orgBranchId.trim())
+    if (isAdmin && orgManagerQuery.trim()) params.set('manager', orgManagerQuery.trim())
     const endpoint = isReceiptTab
-      ? `/api/receipt/drafts?limit=${limit}&skip=${skip}`
-      : `/api/expenses?limit=${limit}&skip=${skip}`
+      ? `/api/receipt/drafts?${params.toString()}`
+      : `/api/expenses?${params.toString()}`
     setRecentFetchError('')
     try {
       const r = await authFetch(endpoint)
@@ -445,7 +492,16 @@ export default function MainApp() {
             : 'Network error loading expenses.',
       )
     }
-  }, [authFetch, mainTab, receiptPanel, receiptLibraryPage, receiptLibraryPageSize])
+  }, [
+    authFetch,
+    isAdmin,
+    mainTab,
+    orgBranchId,
+    orgManagerQuery,
+    receiptPanel,
+    receiptLibraryPage,
+    receiptLibraryPageSize,
+  ])
 
   useEffect(() => {
     void loadRecent()
@@ -618,6 +674,14 @@ export default function MainApp() {
       override && typeof override.category === 'string'
         ? override.category
         : dashCategory
+    const branchId =
+      override && typeof override.branchId === 'string'
+        ? override.branchId
+        : orgBranchId
+    const manager =
+      override && typeof override.manager === 'string'
+        ? override.manager
+        : orgManagerQuery
     const p = new URLSearchParams()
     if (from.trim()) p.set('from', from.trim())
     if (to.trim()) p.set('to', to.trim())
@@ -626,8 +690,19 @@ export default function MainApp() {
       p.set('confidenceFlag', confidenceFlag)
     }
     if (RECEIPT_CATEGORIES.includes(category)) p.set('category', category)
+    if (isAdmin && branchId.trim()) p.set('branchId', branchId.trim())
+    if (isAdmin && manager.trim()) p.set('manager', manager.trim())
     return p
-  }, [dashFrom, dashTo, dashVendor, dashConfidenceFlag, dashCategory])
+  }, [
+    dashFrom,
+    dashTo,
+    dashVendor,
+    dashConfidenceFlag,
+    dashCategory,
+    isAdmin,
+    orgBranchId,
+    orgManagerQuery,
+  ])
 
   function expenseQueryString(skip, limit, filterOverride) {
     const p = expenseFilterParams(filterOverride)
@@ -714,6 +789,8 @@ export default function MainApp() {
       dashVendor,
       dashConfidenceFlag,
       dashCategory,
+      orgBranchId,
+      orgManagerQuery,
     ],
   )
 
@@ -734,20 +811,25 @@ export default function MainApp() {
     setReceiptLibraryPageSize(size)
   }, [])
 
-  function handleApplyDashboard() {
-    setExpensesPage(0)
-    void runDashboardFetch()
-  }
-
   function handleClearDashboardFilters() {
     setDashFrom('')
     setDashTo('')
     setDashVendor('')
     setDashConfidenceFlag('')
     setDashCategory('')
+    setOrgBranchId('')
+    setOrgManagerQuery('')
     setExpensesPage(0)
     void runDashboardFetch({
-      filterOverride: { from: '', to: '', vendor: '', confidenceFlag: '', category: '' },
+      filterOverride: {
+        from: '',
+        to: '',
+        vendor: '',
+        confidenceFlag: '',
+        category: '',
+        branchId: '',
+        manager: '',
+      },
     })
   }
 
@@ -1553,11 +1635,17 @@ export default function MainApp() {
             dashVendor,
             dashConfidenceFlag,
             dashCategory,
+            orgBranchId,
+            orgManagerQuery,
             setDashFrom,
             setDashTo,
             setDashVendor,
             setDashConfidenceFlag,
             setDashCategory,
+            setOrgBranchId,
+            setOrgManagerQuery,
+            branchOptions,
+            isAdmin,
             receiptCategories: RECEIPT_CATEGORIES,
             dashRows,
             dashTotalCount,
@@ -1568,7 +1656,6 @@ export default function MainApp() {
             dashDetailExpense,
             dashEditSaving,
             dashDeleteBusy,
-            onApplyFilters: handleApplyDashboard,
             onClearFilters: handleClearDashboardFilters,
             onExportCsv: exportDashboardCsv,
             exportCsvBusy: dashExportBusy,
@@ -1638,6 +1725,18 @@ export default function MainApp() {
             recentFetchError,
             receiptCategories: RECEIPT_CATEGORIES,
             onReceiptCategoryChange: updateReceiptCategory,
+            isAdmin,
+            branchOptions,
+            orgBranchId,
+            orgManagerQuery,
+            setOrgBranchId,
+            setOrgManagerQuery,
+            onClearOrgFilters: () => {
+              setOrgBranchId('')
+              setOrgManagerQuery('')
+              setReceiptLibraryPage(0)
+              void loadRecent()
+            },
           }}
         />
       )}

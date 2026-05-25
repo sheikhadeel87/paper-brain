@@ -5,6 +5,7 @@ import {
   formatKpiMoney,
 } from '../../lib/dashboardBits'
 import { CurrencyDonut } from '../../components/ExpenseUi'
+import { Select } from '../../components/Select.jsx'
 import { DASH_CURRENCY_CARD_LIMIT } from './useDashboardKpis'
 
 export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
@@ -195,15 +196,17 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               Spending overview
             </h2>
-            <select
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-200 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:focus:border-violet-700 dark:focus:ring-violet-950"
+            <Select
               value={spendingGroup}
-              onChange={(e) => setSpendingGroup(e.target.value)}
-              aria-label="Spending overview grouping"
-            >
-              <option value="category">By category</option>
-              <option value="currency">By currency</option>
-            </select>
+              onChange={setSpendingGroup}
+              options={[
+                { value: 'category', label: 'By category' },
+                { value: 'currency', label: 'By currency' },
+              ]}
+              buttonClassName="!w-auto min-w-[8.5rem] rounded-lg px-2.5 py-1 text-xs font-medium"
+              menuClassName="text-xs"
+              ariaLabel="Spending overview grouping"
+            />
           </div>
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-center">
             <CurrencyDonut slices={spendingSlices} />

@@ -4,6 +4,8 @@ import { DashboardHome } from './DashboardHome.jsx'
 import { ExpenseList } from './ExpenseList.jsx'
 import { AddExpense } from './AddExpense.jsx'
 import { ReceiptList } from './ReceiptList.jsx'
+import { BranchesPage } from './BranchesPage.jsx'
+import { TeamsPage } from './TeamsPage.jsx'
 
 function normalizePathname(pathname) {
   const p = String(pathname || '').replace(/\/+$/, '')
@@ -30,6 +32,12 @@ export function AppShellRoutes({
   }
   if (p === APP_PATHS.receipts) {
     return <ReceiptList {...receiptLibraryProps} />
+  }
+  if (p === APP_PATHS.branches) {
+    return <BranchesPage />
+  }
+  if (p === APP_PATHS.teams) {
+    return <TeamsPage />
   }
   return null
 }

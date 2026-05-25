@@ -5,6 +5,8 @@ export const APP_PATHS = {
   addExpense: '/add-expense',
   expenses: '/expenses',
   receipts: '/receipts',
+  teams: '/dashboard/teams',
+  branches: '/dashboard/branches',
 }
 
 /**

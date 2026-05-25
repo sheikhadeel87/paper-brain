@@ -14,11 +14,17 @@ export function ExpenseList({
   dashVendor,
   dashConfidenceFlag = '',
   dashCategory = '',
+  orgBranchId = '',
+  orgManagerQuery = '',
   setDashFrom,
   setDashTo,
   setDashVendor,
   setDashConfidenceFlag,
   setDashCategory,
+  setOrgBranchId,
+  setOrgManagerQuery,
+  branchOptions = [],
+  isAdmin = false,
   receiptCategories = [],
   dashRows,
   dashTotalCount,
@@ -28,7 +34,6 @@ export function ExpenseList({
   dashDetailExpense,
   dashEditSaving,
   dashDeleteBusy,
-  onApplyFilters,
   onClearFilters,
   onExportCsv,
   exportCsvBusy = false,
@@ -82,11 +87,17 @@ export function ExpenseList({
         dashVendor={dashVendor}
         dashConfidenceFlag={dashConfidenceFlag}
         dashCategory={dashCategory}
+        orgBranchId={orgBranchId}
+        orgManagerQuery={orgManagerQuery}
         setDashFrom={setDashFrom}
         setDashTo={setDashTo}
         setDashVendor={setDashVendor}
         setDashConfidenceFlag={setDashConfidenceFlag}
         setDashCategory={setDashCategory}
+        setOrgBranchId={setOrgBranchId}
+        setOrgManagerQuery={setOrgManagerQuery}
+        branchOptions={branchOptions}
+        isAdmin={isAdmin}
         receiptCategories={receiptCategories}
         dashRows={dashRows}
         dashTotalCount={dashTotalCount}
@@ -96,7 +107,6 @@ export function ExpenseList({
         dashDetailExpense={dashDetailExpense}
         dashEditSaving={dashEditSaving}
         dashDeleteBusy={dashDeleteBusy}
-        onApplyFilters={onApplyFilters}
         onClearFilters={onClearFilters}
         onExportCsv={onExportCsv}
         exportCsvBusy={exportCsvBusy}

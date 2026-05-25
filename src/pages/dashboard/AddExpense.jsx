@@ -9,6 +9,7 @@ import {
 import { needsReviewAcknowledge } from '../../lib/receiptDraft'
 import { receiptImageFileWithinLimits } from '../../lib/receiptImageAccept.js'
 import { InlineSpinner } from '../../components/ExpenseUi'
+import { Select } from '../../components/Select.jsx'
 import { ReceiptHistoryTable } from './ReceiptHistoryTable'
 
 function assignFilesToReceiptInput(input, fileList) {
@@ -403,17 +404,11 @@ export function AddExpense({
                 </label>
                 <label className={`${labelCls} sm:col-span-2`}>
                   Category
-                  <select
-                    className={inputCls}
+                  <Select
                     value={draft.category || 'Other'}
-                    onChange={(e) => updateField('category', e.target.value)}
-                  >
-                    {receiptCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(nextValue) => updateField('category', nextValue)}
+                    options={receiptCategories}
+                  />
                 </label>
               </div>
 

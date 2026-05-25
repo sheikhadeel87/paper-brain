@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiUrl } from '../lib/apiBase.js'
-import { loginRequest, meRequest, registerRequest } from '../services/authService.js'
+import {
+  acceptTeamInvitationRequest,
+  loginRequest,
+  meRequest,
+  registerRequest,
+} from '../services/authService.js'
 import { AuthContext } from './authContext.js'
 
 const TOKEN_KEY = 'paperbrain_token'
@@ -89,6 +94,15 @@ export function AuthProvider({ children }) {
     return { user: res.user, token: res.token }
   }, [persistSession])
 
+  const acceptInvite = useCallback(async (inviteToken, password) => {
+    const res = await acceptTeamInvitationRequest(inviteToken, password)
+    if (!res.ok || !res.success || !res.token || !res.user) {
+      throw new Error(res.error || 'Could not accept invitation')
+    }
+    persistSession(res.token, res.user)
+    return { user: res.user, token: res.token }
+  }, [persistSession])
+
   const logout = useCallback(() => {
     setToken('')
     setUser(null)
@@ -143,6 +157,7 @@ export function AuthProvider({ children }) {
       bootstrapping,
       login,
       register,
+      acceptInvite,
       logout,
       refreshUser,
       refreshUserUntilPro,
@@ -154,6 +169,7 @@ export function AuthProvider({ children }) {
       bootstrapping,
       login,
       register,
+      acceptInvite,
       logout,
       refreshUser,
       refreshUserUntilPro,
