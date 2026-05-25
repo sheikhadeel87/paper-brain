@@ -2,6 +2,7 @@ import { btnBase, btnPrimary, inputCls, labelCls } from '../../lib/uiClasses'
 import { formatDashAmount, needsReviewAcknowledge } from '../../lib/receiptDraft'
 import { normalizeReceiptCategory } from '../../lib/receiptCategories'
 import { ConfidenceMeter, FlagBadge } from '../../components/ExpenseUi'
+import { Select } from '../../components/Select.jsx'
 
 export function ExpenseDetailModal({
   dashDetailExpense,
@@ -163,20 +164,12 @@ export function ExpenseDetailModal({
                 </label>
                 <label className={`${labelCls} sm:col-span-2`}>
                   Category
-                  <select
-                    className={inputCls}
+                  <Select
                     value={dashEditSession.draft.category || 'Other'}
-                    onChange={(e) =>
-                      dashEditUpdateField('category', e.target.value)
-                    }
+                    onChange={(nextValue) => dashEditUpdateField('category', nextValue)}
                     disabled={dashEditSaving}
-                  >
-                    {receiptCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                    options={receiptCategories}
+                  />
                 </label>
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-600 dark:text-zinc-400">

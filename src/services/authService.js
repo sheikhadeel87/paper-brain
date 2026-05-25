@@ -38,6 +38,24 @@ export async function resendVerificationRequest(email) {
   return { ok: r.ok, status: r.status, ...data }
 }
 
+export async function verifyTeamInvitationRequest(token) {
+  const r = await fetch(
+    apiUrl(`/api/teams/invite/verify?token=${encodeURIComponent(token)}`),
+  )
+  const data = await r.json().catch(() => ({}))
+  return { ok: r.ok, status: r.status, ...data }
+}
+
+export async function acceptTeamInvitationRequest(token, password) {
+  const r = await fetch(apiUrl('/api/teams/invite/accept'), {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ token, password }),
+  })
+  const data = await r.json().catch(() => ({}))
+  return { ok: r.ok, status: r.status, ...data }
+}
+
 export async function meRequest(token) {
   const r = await fetch(apiUrl('/api/auth/me'), {
     headers: { Authorization: `Bearer ${token}` },

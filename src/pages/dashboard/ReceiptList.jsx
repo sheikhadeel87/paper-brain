@@ -1,4 +1,5 @@
-import { btnPrimary } from '../../lib/uiClasses'
+import { btnBase, btnPrimary, inputCls, labelCls } from '../../lib/uiClasses'
+import { Select } from '../../components/Select.jsx'
 import { ReceiptHistoryTable } from './ReceiptHistoryTable'
 import { PagedNav } from './PagedNav'
 
@@ -14,6 +15,13 @@ export function ReceiptList({
   recentFetchError,
   receiptCategories = [],
   onReceiptCategoryChange,
+  isAdmin = false,
+  branchOptions = [],
+  orgBranchId = '',
+  orgManagerQuery = '',
+  setOrgBranchId,
+  setOrgManagerQuery,
+  onClearOrgFilters,
 }) {
   const libraryTotalPages = Math.max(
     1,
@@ -62,11 +70,54 @@ export function ReceiptList({
             {recentFetchError}
           </p>
         ) : null}
+        {isAdmin ? (
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Organization filters
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className={labelCls}>
+                Branch
+                <Select
+                  value={orgBranchId}
+                  onChange={(nextValue) =>
+                    typeof setOrgBranchId === 'function' && setOrgBranchId(nextValue)
+                  }
+                  options={[
+                    { value: '', label: 'All branches' },
+                    ...branchOptions.map((branch) => ({
+                      value: branch.id || branch._id,
+                      label: branch.name,
+                    })),
+                  ]}
+                />
+              </label>
+              <label className={labelCls}>
+                Manager name/email
+                <input
+                  className={inputCls}
+                  value={orgManagerQuery}
+                  onChange={(e) =>
+                    typeof setOrgManagerQuery === 'function' &&
+                    setOrgManagerQuery(e.target.value)
+                  }
+                  placeholder="e.g. madeel or gmail.com"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button type="button" className={btnBase} onClick={onClearOrgFilters}>
+                Clear filters
+              </button>
+            </div>
+          </section>
+        ) : null}
         <ReceiptHistoryTable
           recent={recent}
           emptyHint="No expenses yet. Use Scan new receipt to add one."
           categories={receiptCategories}
           onCategoryChange={onReceiptCategoryChange}
+          showOrgColumns={isAdmin}
         />
         <PagedNav
           pageIndex={receiptLibraryPage}

@@ -1,6 +1,5 @@
 import {
   btnBase,
-  btnPrimary,
   dashRowIconBtn,
   dashRowIconBtnDanger,
   inputCls,
@@ -16,6 +15,7 @@ import {
   TrashIcon,
   VendorAvatar,
 } from '../../components/ExpenseUi'
+import { Select } from '../../components/Select.jsx'
 import { PagedNav } from './PagedNav'
 
 /**
@@ -35,11 +35,17 @@ export function DashboardExpensesSection({
   dashVendor,
   dashConfidenceFlag = '',
   dashCategory = '',
+  orgBranchId = '',
+  orgManagerQuery = '',
   setDashFrom,
   setDashTo,
   setDashVendor,
   setDashConfidenceFlag,
   setDashCategory,
+  setOrgBranchId,
+  setOrgManagerQuery,
+  branchOptions = [],
+  isAdmin = false,
   receiptCategories = [],
   dashRows,
   dashTotalCount,
@@ -49,7 +55,6 @@ export function DashboardExpensesSection({
   dashDetailExpense,
   dashEditSaving,
   dashDeleteBusy,
-  onApplyFilters,
   onClearFilters,
   onExportCsv,
   exportCsvBusy = false,
@@ -74,7 +79,9 @@ export function DashboardExpensesSection({
     !String(dashTo || '').trim() &&
     !String(dashVendor || '').trim() &&
     !String(dashConfidenceFlag || '').trim() &&
-    !String(dashCategory || '').trim()
+    !String(dashCategory || '').trim() &&
+    !String(orgBranchId || '').trim() &&
+    !String(orgManagerQuery || '').trim()
 
   return (
     <section
@@ -115,41 +122,64 @@ export function DashboardExpensesSection({
           </label>
           <label className={labelCls}>
             Flag
-            <select
-              className={inputCls}
+            <Select
               value={dashConfidenceFlag}
-              onChange={(e) => setDashConfidenceFlag(e.target.value)}
-            >
-              <option value="">All</option>
-              <option value="auto">Auto</option>
-              <option value="review">Review</option>
-            </select>
+              onChange={setDashConfidenceFlag}
+              options={[
+                { value: '', label: 'All' },
+                { value: 'auto', label: 'Auto' },
+                { value: 'review', label: 'Review' },
+              ]}
+            />
           </label>
           <label className={labelCls}>
             Category
-            <select
-              className={inputCls}
+            <Select
               value={dashCategory}
-              onChange={(e) => setDashCategory(e.target.value)}
-            >
-              <option value="">All</option>
-              {receiptCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
+              onChange={setDashCategory}
+              options={[
+                { value: '', label: 'All' },
+                ...receiptCategories.map((category) => ({
+                  value: category,
+                  label: category,
+                })),
+              ]}
+            />
           </label>
+          {isAdmin ? (
+            <>
+              <label className={labelCls}>
+                Branch
+                <Select
+                  value={orgBranchId}
+                  onChange={(nextValue) =>
+                    typeof setOrgBranchId === 'function' && setOrgBranchId(nextValue)
+                  }
+                  options={[
+                    { value: '', label: 'All branches' },
+                    ...branchOptions.map((branch) => ({
+                      value: branch.id || branch._id,
+                      label: branch.name,
+                    })),
+                  ]}
+                />
+              </label>
+              <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
+                Manager name/email
+                <input
+                  className={inputCls}
+                  value={orgManagerQuery}
+                  onChange={(e) =>
+                    typeof setOrgManagerQuery === 'function' &&
+                    setOrgManagerQuery(e.target.value)
+                  }
+                  placeholder="e.g. madeel or gmail.com"
+                />
+              </label>
+            </>
+          ) : null}
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            className={btnPrimary}
-            disabled={dashLoading}
-            onClick={onApplyFilters}
-          >
-            Apply filters
-          </button>
           <button
             type="button"
             className={btnBase}
@@ -214,6 +244,16 @@ export function DashboardExpensesSection({
                 <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Category
                 </th>
+                {isAdmin ? (
+                  <>
+                    <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                      Branch
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                      Uploaded By
+                    </th>
+                  </>
+                ) : null}
                 <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Date
                 </th>
@@ -232,7 +272,7 @@ export function DashboardExpensesSection({
               {dashRows.length === 0 && !dashLoading && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={isAdmin ? 10 : 8}
                     className="px-3 py-6 text-center text-zinc-500 dark:text-zinc-400"
                   >
                     {noDashFilters ? (
@@ -264,6 +304,11 @@ export function DashboardExpensesSection({
                       : null
                 const flagRaw = ex.confidenceFlag ?? fd.confidence_flag
                 const category = normalizeReceiptCategory(fd.category)
+                const branch = ex.branch && typeof ex.branch === 'object' ? ex.branch : null
+                const uploader =
+                  ex.uploadedByUser && typeof ex.uploadedByUser === 'object'
+                    ? ex.uploadedByUser
+                    : null
                 return (
                   <tr
                     key={ex._id}
@@ -292,6 +337,23 @@ export function DashboardExpensesSection({
                         {category}
                       </span>
                     </td>
+                    {isAdmin ? (
+                      <>
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-700 dark:text-zinc-300">
+                          {branch?.name || '—'}
+                        </td>
+                        <td className="max-w-[13rem] px-3 py-2 text-zinc-600 dark:text-zinc-400">
+                          <div className="truncate font-medium text-zinc-800 dark:text-zinc-200">
+                            {uploader?.name || uploader?.email || '—'}
+                          </div>
+                          {uploader?.email && uploader.email !== uploader.name ? (
+                            <div className="truncate text-xs text-zinc-500 dark:text-zinc-500">
+                              {uploader.email}
+                            </div>
+                          ) : null}
+                        </td>
+                      </>
+                    ) : null}
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {created || '—'}
                     </td>

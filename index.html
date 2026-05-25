@@ -8,6 +8,22 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>Paper Brain</title>
+    <script>
+      ;(() => {
+        try {
+          const stored = localStorage.getItem('paperbrain_theme') || 'system'
+          const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches
+          const resolved = stored === 'dark' || (stored === 'system' && prefersDark)
+            ? 'dark'
+            : 'light'
+          document.documentElement.classList.toggle('dark', resolved === 'dark')
+          document.documentElement.dataset.theme = resolved
+          document.documentElement.style.colorScheme = resolved
+        } catch {
+          /* Keep first paint stable if storage is unavailable. */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

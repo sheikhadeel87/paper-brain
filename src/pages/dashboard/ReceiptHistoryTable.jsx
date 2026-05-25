@@ -4,6 +4,7 @@ import {
   RECEIPT_CATEGORIES,
   normalizeReceiptCategory,
 } from '../../lib/receiptCategories'
+import { Select } from '../../components/Select.jsx'
 
 export function ReceiptHistoryTable({
   recent,
@@ -11,6 +12,7 @@ export function ReceiptHistoryTable({
   emptyHint,
   categories = RECEIPT_CATEGORIES,
   onCategoryChange,
+  showOrgColumns = false,
 }) {
   /** Horizontal scroll on narrow viewports only; no max-height so paged rows fit without a vertical scrollbar. */
   const wrapCls =
@@ -38,6 +40,16 @@ export function ReceiptHistoryTable({
                 <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Category
                 </th>
+                {showOrgColumns ? (
+                  <>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                      Branch
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                      Uploaded By
+                    </th>
+                  </>
+                ) : null}
                 <th className="whitespace-nowrap px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
                   Created
                 </th>
@@ -56,6 +68,11 @@ export function ReceiptHistoryTable({
                   : '—'
                 const category = normalizeReceiptCategory(fd.category || ex.category)
                 const receiptId = ex._id || ex.id
+                const branch = ex.branch && typeof ex.branch === 'object' ? ex.branch : null
+                const uploader =
+                  ex.uploadedByUser && typeof ex.uploadedByUser === 'object'
+                    ? ex.uploadedByUser
+                    : null
                 const duplicate =
                   Boolean(ex.possibleDuplicate || fd.possibleDuplicate) ||
                   Boolean(ex.duplicateWarning || fd.duplicateWarning)
@@ -86,23 +103,36 @@ export function ReceiptHistoryTable({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       {typeof onCategoryChange === 'function' && receiptId ? (
-                        <select
-                          className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                        <Select
                           value={category}
-                          onChange={(e) => onCategoryChange(receiptId, e.target.value)}
-                        >
-                          {categories.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(nextValue) => onCategoryChange(receiptId, nextValue)}
+                          options={categories}
+                          buttonClassName="min-h-0 rounded-full px-2 py-1 text-xs font-medium"
+                          menuClassName="text-xs"
+                        />
                       ) : (
                         <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
                           {category}
                         </span>
                       )}
                     </td>
+                    {showOrgColumns ? (
+                      <>
+                        <td className="whitespace-nowrap px-3 py-2 text-zinc-700 dark:text-zinc-300">
+                          {branch?.name || '—'}
+                        </td>
+                        <td className="max-w-[13rem] px-3 py-2 text-zinc-600 dark:text-zinc-400">
+                          <div className="truncate font-medium text-zinc-800 dark:text-zinc-200">
+                            {uploader?.name || uploader?.email || '—'}
+                          </div>
+                          {uploader?.email && uploader.email !== uploader.name ? (
+                            <div className="truncate text-xs text-zinc-500 dark:text-zinc-500">
+                              {uploader.email}
+                            </div>
+                          ) : null}
+                        </td>
+                      </>
+                    ) : null}
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {created}
                     </td>
