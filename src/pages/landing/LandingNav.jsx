@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { BrandMark } from '../../components/BrandMark.jsx'
+import { ThemeToggle } from '../../components/ThemeToggle.jsx'
 import { btnBase, btnPrimary } from '../../lib/uiClasses.js'
 
 // const navLinkCls =
@@ -91,6 +92,7 @@ export function LandingNav() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle compact />
           <Link to="/login" className={`${btnBase} px-3 py-2 text-sm no-underline`}>
             Log in
           </Link>
