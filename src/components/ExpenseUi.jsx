@@ -261,6 +261,13 @@ function formatSubscriptionPeriodEnd(raw) {
 }
 
 function planBadgeForUser(user) {
+  if (String(user?.role || '').toUpperCase() === 'MANAGER') {
+    return {
+      label: 'Team',
+      className:
+        'rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
+    }
+  }
   if (!user || user.plan !== 'pro') {
     return {
       label: 'Free',
@@ -490,24 +497,26 @@ export function AppChrome({
                 </div>
               </div>
               <div className="mt-2 space-y-1">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:text-violet-200 dark:hover:bg-violet-950/40"
-                  onClick={() => {
-                    setAccountMenuOpen(false)
-                    if (user?.plan === 'pro') onManageBilling()
-                    else onUpgradePlan()
-                  }}
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200">
-                    {user?.plan === 'pro' ? (
-                      <CreditCard className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    )}
-                  </span>
-                  <span>{user?.plan === 'pro' ? 'Manage billing' : 'Upgrade to Pro'}</span>
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:text-violet-200 dark:hover:bg-violet-950/40"
+                    onClick={() => {
+                      setAccountMenuOpen(false)
+                      if (user?.plan === 'pro') onManageBilling()
+                      else onUpgradePlan()
+                    }}
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                      {user?.plan === 'pro' ? (
+                        <CreditCard className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </span>
+                    <span>{user?.plan === 'pro' ? 'Manage billing' : 'Upgrade to Pro'}</span>
+                  </button>
+                ) : null}
                 {typeof onLogout === 'function' ? (
                   <button
                     type="button"

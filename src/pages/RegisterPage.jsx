@@ -124,6 +124,8 @@ export default function RegisterPage() {
               autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              pattern="[A-Za-z]+ [A-Za-z]+"
+              title="Enter first and last name using alphabets only, e.g. Muhammad Adeel."
               required
             />
           </label>

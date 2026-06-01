@@ -77,7 +77,8 @@ export function FreeTierLimitToast({
       <div className="px-5 py-4">
         <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{message}</p>
 
-        <ul className="mt-4 space-y-2">
+        {onUpgrade ? (
+          <ul className="mt-4 space-y-2">
           {PRO_PERKS.map((perk) => {
             const PerkIcon = perk.icon
             return (
@@ -92,18 +93,21 @@ export function FreeTierLimitToast({
               </li>
             )
           })}
-        </ul>
+          </ul>
+        ) : null}
 
-        <button
-          type="button"
-          className="mt-5 w-full rounded-xl bg-gradient-to-r from-violet-600 via-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40 active:scale-[0.98]"
-          onClick={() => {
-            toast.dismiss(t.id)
-            onUpgrade?.()
-          }}
-        >
-          Unlock Pro — unlimited scans
-        </button>
+        {onUpgrade ? (
+          <button
+            type="button"
+            className="mt-5 w-full rounded-xl bg-gradient-to-r from-violet-600 via-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/40 active:scale-[0.98]"
+            onClick={() => {
+              toast.dismiss(t.id)
+              onUpgrade()
+            }}
+          >
+            Unlock Pro — unlimited scans
+          </button>
+        ) : null}
         <button
           type="button"
           className="mt-2 w-full rounded-lg py-2 text-xs font-medium text-zinc-500 transition hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
