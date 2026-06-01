@@ -1026,6 +1026,7 @@ export default function MainApp() {
   function showFreeTierDailyLimitToast(data) {
     const msg =
       typeof data?.error === 'string' ? data.error : FREE_TIER_LIMIT_FALLBACK_MESSAGE
+    const isAdminUser = String(user?.role || '').toUpperCase() === 'ADMIN'
     toast.custom(
       (t) => (
         <FreeTierLimitToast
@@ -1033,7 +1034,7 @@ export default function MainApp() {
           message={msg}
           used={typeof data?.used === 'number' ? data.used : 5}
           limit={typeof data?.limit === 'number' ? data.limit : 5}
-          onUpgrade={() => void openCheckout()}
+          onUpgrade={isAdminUser ? () => void openCheckout() : null}
         />
       ),
       {

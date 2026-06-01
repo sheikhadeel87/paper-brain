@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Mail, MapPin, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '../components/BrandMark.jsx'
 import { useAuth } from '../context/useAuth.js'
@@ -14,7 +14,6 @@ function branchLabel(invitation) {
 }
 
 export default function AcceptInvitePage() {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { acceptInvite } = useAuth()
   const token = useMemo(() => searchParams.get('token')?.trim() || '', [searchParams])
@@ -76,7 +75,7 @@ export default function AcceptInvitePage() {
     setBusy(true)
     try {
       await acceptInvite(token, password)
-      navigate('/dashboard', { replace: true })
+      window.location.replace('/dashboard')
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Could not accept invitation.')
     } finally {
