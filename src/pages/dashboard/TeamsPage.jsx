@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { MailPlus, MapPin, Pencil, Plus, Trash2, UserRound, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, MailPlus, MapPin, Pencil, Plus, Trash2, UserRound, Users, X } from 'lucide-react'
 import { useAuth } from '../../context/useAuth.js'
 import { btnBase, btnPrimary, cardCls, inputCls, labelCls } from '../../lib/uiClasses.js'
 import { Select } from '../../components/Select.jsx'
@@ -62,15 +62,23 @@ export function TeamsPage() {
   const [deleteBusyId, setDeleteBusyId] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [emailSortDirection, setEmailSortDirection] = useState('asc')
   const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
 
   const sortedMembers = useMemo(
     () =>
-      [...members].sort((a, b) =>
-        String(a?.email || '').localeCompare(String(b?.email || '')),
-      ),
-    [members],
+      [...members].sort((a, b) => {
+        const result = String(a?.email || '').localeCompare(
+          String(b?.email || ''),
+          undefined,
+          { sensitivity: 'base' },
+        )
+        return emailSortDirection === 'asc' ? result : -result
+      }),
+    [emailSortDirection, members],
   )
+
+  const EmailSortIcon = emailSortDirection === 'asc' ? ArrowUp : ArrowDown
 
   const sortedBranches = useMemo(
     () =>
@@ -439,7 +447,20 @@ export function TeamsPage() {
                 <thead className="bg-zinc-50 dark:bg-zinc-950/70">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Email
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-md text-xs font-semibold uppercase tracking-wide text-zinc-500 transition hover:text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 dark:text-zinc-400 dark:hover:text-violet-300"
+                        onClick={() =>
+                          setEmailSortDirection((direction) =>
+                            direction === 'asc' ? 'desc' : 'asc',
+                          )
+                        }
+                        aria-label={`Sort email addresses ${emailSortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                        title={`Sort ${emailSortDirection === 'asc' ? 'Z-A' : 'A-Z'}`}
+                      >
+                        <EmailSortIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        Email
+                      </button>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Role

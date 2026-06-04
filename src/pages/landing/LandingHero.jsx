@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { hero } from './content.js'
+import { useAuth } from '../../context/useAuth.js'
 import { btnBase, btnPrimary } from '../../lib/uiClasses.js'
 import { motion } from 'framer-motion';
 import { Scan, FileText, Check } from 'lucide-react';
@@ -147,6 +148,8 @@ export function HeroVisual() {
 // }
 
 export function LandingHero() {
+  const { token } = useAuth()
+
   return (
     <section className="border-b border-zinc-100 bg-white px-4 py-14 dark:border-zinc-800 dark:bg-zinc-950 sm:px-6 sm:py-20">
       <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
@@ -163,29 +166,40 @@ export function LandingHero() {
           <p className="mt-5 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-lg">
             {hero.subtitle}
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {token ? (
             <Link
-              to="/login"
-              className={`${btnPrimary} inline-flex justify-center px-6 py-3 text-base no-underline`}
+              to="/dashboard"
+              className={`${btnPrimary} mt-8 inline-flex justify-center px-6 py-3 text-base no-underline`}
             >
-              Log in
+              Open dashboard
             </Link>
-            <Link
-              to="/register"
-              className={`${btnBase} inline-flex justify-center border-violet-300 px-6 py-3 text-base text-violet-800 no-underline hover:bg-violet-50 dark:border-violet-700 dark:text-violet-200 dark:hover:bg-violet-950/40`}
-            >
-              Create account
-            </Link>
-          </div>
-          <p className="mt-6 text-center text-sm text-zinc-600 sm:text-left dark:text-zinc-400">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="font-semibold text-violet-600 underline-offset-2 hover:underline dark:text-violet-400"
-            >
-              Log in
-            </Link>
-          </p>
+          ) : (
+            <>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Link
+                  to="/login"
+                  className={`${btnPrimary} inline-flex justify-center px-6 py-3 text-base no-underline`}
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/register"
+                  className={`${btnBase} inline-flex justify-center border-violet-300 px-6 py-3 text-base text-violet-800 no-underline hover:bg-violet-50 dark:border-violet-700 dark:text-violet-200 dark:hover:bg-violet-950/40`}
+                >
+                  Create account
+                </Link>
+              </div>
+              <p className="mt-6 text-center text-sm text-zinc-600 sm:text-left dark:text-zinc-400">
+                Already have an account?{' '}
+                <Link
+                  to="/login"
+                  className="font-semibold text-violet-600 underline-offset-2 hover:underline dark:text-violet-400"
+                >
+                  Log in
+                </Link>
+              </p>
+            </>
+          )}
         </div>
         <HeroVisual />
       </div>

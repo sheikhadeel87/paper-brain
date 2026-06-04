@@ -49,7 +49,12 @@ const DASH_OVERVIEW_LIMIT = 10
  * A single `Promise.race` caps the *entire* operation, including the body, and we abort the signal.
  */
 const RECEIPT_UPLOAD_TIMEOUT_MS = 120_000
-const RECEIPT_QUEUE_STORAGE_KEY = 'paper-brain:receipt-batch-poll'
+const RECEIPT_QUEUE_STORAGE_KEY_PREFIX = 'paper-brain:receipt-batch-poll'
+
+function receiptQueueStorageKey(userId) {
+  const id = typeof userId === 'string' ? userId.trim() : ''
+  return id ? `${RECEIPT_QUEUE_STORAGE_KEY_PREFIX}:${id}` : ''
+}
 
 function bullMqFifoRunnerState(st) {
   return st === 'active' || st === 'prioritized'
@@ -147,10 +152,13 @@ function fileListToArray(fileList) {
   return out
 }
 
-function readPersistedReceiptBatchPoll() {
+function readPersistedReceiptBatchPoll(userId) {
   if (typeof window === 'undefined') return null
+  const storageKey = receiptQueueStorageKey(userId)
+  if (!storageKey) return null
   try {
-    const raw = window.localStorage.getItem(RECEIPT_QUEUE_STORAGE_KEY)
+    window.localStorage.removeItem(RECEIPT_QUEUE_STORAGE_KEY_PREFIX)
+    const raw = window.localStorage.getItem(storageKey)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return null
@@ -160,11 +168,15 @@ function readPersistedReceiptBatchPoll() {
       ? parsed.jobIds.map((id) => String(id)).filter(Boolean)
       : []
     if (!sessionKey) return null
+    const ownerUserId =
+      typeof parsed.userId === 'string' ? parsed.userId.trim() : ''
+    if (ownerUserId !== userId) return null
     const fileNamesById =
       parsed.fileNamesById && typeof parsed.fileNamesById === 'object'
         ? parsed.fileNamesById
         : {}
     return {
+      userId,
       sessionKey,
       jobIds,
       fileNamesById,
@@ -189,6 +201,7 @@ export default function MainApp() {
     () => parseAppSection(appSegment === '' ? null : appSegment),
     [appSegment],
   )
+  const currentUserId = typeof user?.id === 'string' ? user.id : ''
   const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
 
   const [mainTab, setMainTab] = useState(() => parsed?.mainTab ?? 'dashboard')
@@ -241,7 +254,7 @@ export default function MainApp() {
    * BullMQ session: merged job ids, live summary from `/jobs-status`, stable `sessionKey` for polling.
    */
   const [receiptBatchPoll, setReceiptBatchPoll] = useState(
-    () => readPersistedReceiptBatchPoll(),
+    () => readPersistedReceiptBatchPoll(currentUserId),
   )
   const [receiptBatchPostBusy, setReceiptBatchPostBusy] = useState(false)
   const receiptBatchPollRef = useRef(null)
@@ -249,19 +262,30 @@ export default function MainApp() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const storageKey = receiptQueueStorageKey(currentUserId)
+    if (!storageKey) {
+      setReceiptBatchPoll(null)
+      return
+    }
     try {
+      window.localStorage.removeItem(RECEIPT_QUEUE_STORAGE_KEY_PREFIX)
       if (!receiptBatchPoll?.sessionKey) {
-        window.localStorage.removeItem(RECEIPT_QUEUE_STORAGE_KEY)
+        window.localStorage.removeItem(storageKey)
         return
       }
+      if (receiptBatchPoll.userId !== currentUserId) return
       window.localStorage.setItem(
-        RECEIPT_QUEUE_STORAGE_KEY,
-        JSON.stringify(receiptBatchPoll),
+        storageKey,
+        JSON.stringify({ ...receiptBatchPoll, userId: currentUserId }),
       )
     } catch {
       /* ignore quota / privacy mode errors */
     }
-  }, [receiptBatchPoll])
+  }, [currentUserId, receiptBatchPoll])
+
+  useEffect(() => {
+    setReceiptBatchPoll(readPersistedReceiptBatchPoll(currentUserId))
+  }, [currentUserId])
 
   const dismissReceiptQueue = useCallback(() => {
     setReceiptBatchPoll(null)
@@ -1244,7 +1268,11 @@ export default function MainApp() {
     if (!files.length) return
     setSaveError('')
     try {
-      const prevIds = receiptBatchPollRef.current?.jobIds ?? []
+      const activePoll =
+        receiptBatchPollRef.current?.userId === currentUserId
+          ? receiptBatchPollRef.current
+          : null
+      const prevIds = activePoll?.jobIds ?? []
       const fd = new FormData()
       for (const f of files) {
         fd.append('receipts', f)
@@ -1272,6 +1300,7 @@ export default function MainApp() {
       if (data.processedInline && data.summary) {
         const s = data.summary
         setReceiptBatchPoll(() => ({
+          userId: currentUserId,
           sessionKey:
             typeof crypto !== 'undefined' && crypto.randomUUID
               ? crypto.randomUUID()
@@ -1307,8 +1336,9 @@ export default function MainApp() {
       })
       const mergedCount = new Set([...prevIds, ...jobIds]).size
       setReceiptBatchPoll((prev) => {
-        if (!prev?.sessionKey) {
+        if (!prev?.sessionKey || prev.userId !== currentUserId) {
           return {
+            userId: currentUserId,
             sessionKey:
               typeof crypto !== 'undefined' && crypto.randomUUID
                 ? crypto.randomUUID()
