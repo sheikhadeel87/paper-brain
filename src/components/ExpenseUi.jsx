@@ -178,8 +178,19 @@ export function CurrencyDonut({ slices }) {
   const total = slices.reduce((a, s) => a + s.value, 0)
   if (total <= 0) {
     return (
-      <div className="flex min-h-[11rem] items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
-        No totals for this filter.
+      <div
+        className="relative mx-auto h-40 w-40 shrink-0 rounded-full shadow-sm ring-1 ring-zinc-200/80 dark:ring-zinc-700"
+        style={{
+          background:
+            'conic-gradient(from -90deg, rgba(124,58,237,0.22) 0% 34%, rgba(20,184,166,0.18) 34% 58%, rgba(14,165,233,0.18) 58% 78%, rgba(245,158,11,0.18) 78% 100%)',
+        }}
+        role="img"
+        aria-label="No spending data yet"
+      >
+        <div className="absolute inset-[24%] rounded-full bg-white shadow-inner dark:bg-zinc-900" />
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-zinc-400 dark:text-zinc-500">
+          0
+        </div>
       </div>
     )
   }

@@ -1,8 +1,22 @@
+import { useState } from 'react'
+import { Eye } from 'lucide-react'
 import { btnBase, btnPrimary, inputCls, labelCls } from '../../lib/uiClasses'
 import { formatDashAmount, needsReviewAcknowledge } from '../../lib/receiptDraft'
 import { normalizeReceiptCategory } from '../../lib/receiptCategories'
 import { ConfidenceMeter, FlagBadge } from '../../components/ExpenseUi'
 import { Select } from '../../components/Select.jsx'
+
+function displayReceiptDate(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text || text === '1970-01-01') return '—'
+  return text
+}
+
+function displayStatus(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text) return ''
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
 
 export function ExpenseDetailModal({
   dashDetailExpense,
@@ -22,7 +36,14 @@ export function ExpenseDetailModal({
   dashEditAddItemRow,
   receiptCategories = [],
 }) {
+  const [receiptImageOpen, setReceiptImageOpen] = useState(false)
+
   if (!dashDetailExpense) return null
+
+  const receiptImageUrl =
+    typeof dashDetailExpense.receiptImageUrl === 'string'
+      ? dashDetailExpense.receiptImageUrl.trim()
+      : ''
 
   return (
     <div
@@ -53,6 +74,27 @@ export function ExpenseDetailModal({
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             {!dashEditSession ? (
               <>
+                <button
+                  type="button"
+                  className={`${btnBase} gap-2`}
+                  onClick={() => {
+                    if (receiptImageUrl) setReceiptImageOpen(true)
+                  }}
+                  disabled={!receiptImageUrl}
+                  aria-label={
+                    receiptImageUrl
+                      ? 'View uploaded receipt image'
+                      : 'No uploaded receipt image saved for this expense'
+                  }
+                  title={
+                    receiptImageUrl
+                      ? 'View uploaded receipt image'
+                      : 'No uploaded receipt image saved for this expense'
+                  }
+                >
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                  Image
+                </button>
                 <button
                   type="button"
                   className={btnPrimary}
@@ -94,6 +136,47 @@ export function ExpenseDetailModal({
             </button>
           </div>
         </div>
+
+        {receiptImageOpen && receiptImageUrl ? (
+          <div
+            className="fixed inset-0 z-[130] flex items-end justify-center bg-zinc-900/55 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+            role="presentation"
+            onClick={() => setReceiptImageOpen(false)}
+          >
+            <div
+              className="flex max-h-[min(calc(100dvh-0.5rem),820px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-violet-200/70 bg-white shadow-xl shadow-violet-900/10 ring-1 ring-violet-200/50 dark:border-violet-900/45 dark:bg-zinc-900 dark:shadow-black/40 dark:ring-violet-900/35 sm:rounded-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Uploaded receipt image"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-violet-100 bg-gradient-to-r from-violet-50/90 via-white to-zinc-50/40 px-4 py-3 dark:border-violet-900/40 dark:from-violet-950/35 dark:via-zinc-900 dark:to-zinc-900/90 sm:px-5 sm:py-4">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                    Uploaded receipt image
+                  </h3>
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    Original image used for extraction.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={btnBase}
+                  onClick={() => setReceiptImageOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto bg-gradient-to-b from-zinc-50 to-violet-50/35 p-4 dark:from-zinc-950 dark:to-violet-950/15 sm:p-5">
+                <img
+                  src={receiptImageUrl}
+                  alt="Uploaded receipt"
+                  className="mx-auto max-h-[68dvh] w-auto max-w-[min(100%,560px)] rounded-xl border border-violet-100 bg-white object-contain shadow-sm shadow-violet-900/10 dark:border-violet-900/45 dark:bg-zinc-950 dark:shadow-black/30"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 text-left text-sm sm:px-5 sm:py-4">
           {dashEditSaveError && (
@@ -341,6 +424,7 @@ export function ExpenseDetailModal({
                       : null
                 const confLabel =
                   docConf !== null ? `${Math.round(docConf)}%` : '—'
+                const statusLabel = displayStatus(ex.status)
                 const initialScanFailed =
                   ex.originalAiData &&
                   typeof ex.originalAiData === 'object' &&
@@ -389,7 +473,7 @@ export function ExpenseDetailModal({
                           Receipt date
                         </dt>
                         <dd className="mt-0.5 text-zinc-900 dark:text-zinc-100">
-                          {fd.date || '—'}
+                          {displayReceiptDate(fd.date)}
                         </dd>
                       </div>
                       <div>
@@ -434,9 +518,9 @@ export function ExpenseDetailModal({
                           <FlagBadge
                             flag={ex.confidenceFlag ?? fd.confidence_flag}
                           />
-                          {ex.status ? (
-                            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                              · {ex.status}
+                          {statusLabel ? (
+                            <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                              {statusLabel}
                             </span>
                           ) : null}
                         </dd>

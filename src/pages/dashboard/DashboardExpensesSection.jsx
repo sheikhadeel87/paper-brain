@@ -88,125 +88,132 @@ export function DashboardExpensesSection({
       className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       id="dash-expenses-table"
     >
-      <div className="border-b border-zinc-200 p-4 sm:p-6 dark:border-zinc-800">
-        <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          Filters
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          <label className={labelCls}>
-            From (created)
-            <input
-              className={inputCls}
-              type="date"
-              value={dashFrom}
-              onChange={(e) => setDashFrom(e.target.value)}
-            />
-          </label>
-          <label className={labelCls}>
-            To (created)
-            <input
-              className={inputCls}
-              type="date"
-              value={dashTo}
-              onChange={(e) => setDashTo(e.target.value)}
-            />
-          </label>
-          <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
-            Vendor contains
-            <input
-              className={inputCls}
-              value={dashVendor}
-              onChange={(e) => setDashVendor(e.target.value)}
-              placeholder="e.g. Mart"
-            />
-          </label>
-          <label className={labelCls}>
-            Flag
-            <Select
-              value={dashConfidenceFlag}
-              onChange={setDashConfidenceFlag}
-              options={[
-                { value: '', label: 'All' },
-                { value: 'auto', label: 'Auto' },
-                { value: 'review', label: 'Review' },
-              ]}
-            />
-          </label>
-          <label className={labelCls}>
-            Category
-            <Select
-              value={dashCategory}
-              onChange={setDashCategory}
-              options={[
-                { value: '', label: 'All' },
-                ...receiptCategories.map((category) => ({
-                  value: category,
-                  label: category,
-                })),
-              ]}
-            />
-          </label>
-          {isAdmin ? (
-            <>
-              <label className={labelCls}>
-                Branch
-                <Select
-                  value={orgBranchId}
-                  onChange={(nextValue) =>
-                    typeof setOrgBranchId === 'function' && setOrgBranchId(nextValue)
-                  }
-                  options={[
-                    { value: '', label: 'All branches' },
-                    ...branchOptions.map((branch) => ({
-                      value: branch.id || branch._id,
-                      label: branch.name,
-                    })),
-                  ]}
-                />
-              </label>
-              <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
-                Manager name/email
-                <input
-                  className={inputCls}
-                  value={orgManagerQuery}
-                  onChange={(e) =>
-                    typeof setOrgManagerQuery === 'function' &&
-                    setOrgManagerQuery(e.target.value)
-                  }
-                  placeholder="e.g. madeel or gmail.com"
-                />
-              </label>
-            </>
-          ) : null}
+      {isExpensesList ? (
+        <div className="border-b border-zinc-200 p-4 sm:p-6 dark:border-zinc-800">
+          <h2 className="mb-4 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            Filters
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            <label className={labelCls}>
+              From (created)
+              <input
+                className={inputCls}
+                type="date"
+                value={dashFrom}
+                onChange={(e) => setDashFrom(e.target.value)}
+              />
+            </label>
+            <label className={labelCls}>
+              To (created)
+              <input
+                className={inputCls}
+                type="date"
+                value={dashTo}
+                onChange={(e) => setDashTo(e.target.value)}
+              />
+            </label>
+            <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
+              Vendor contains
+              <input
+                className={inputCls}
+                value={dashVendor}
+                onChange={(e) => setDashVendor(e.target.value)}
+                placeholder="e.g. Mart"
+              />
+            </label>
+            <label className={labelCls}>
+              Flag
+              <Select
+                value={dashConfidenceFlag}
+                onChange={setDashConfidenceFlag}
+                options={[
+                  { value: '', label: 'All' },
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'review', label: 'Review' },
+                ]}
+              />
+            </label>
+            <label className={labelCls}>
+              Category
+              <Select
+                value={dashCategory}
+                onChange={setDashCategory}
+                options={[
+                  { value: '', label: 'All' },
+                  ...receiptCategories.map((category) => ({
+                    value: category,
+                    label: category,
+                  })),
+                ]}
+              />
+            </label>
+            {isAdmin ? (
+              <>
+                <label className={labelCls}>
+                  Branch
+                  <Select
+                    value={orgBranchId}
+                    onChange={(nextValue) =>
+                      typeof setOrgBranchId === 'function' && setOrgBranchId(nextValue)
+                    }
+                    options={[
+                      { value: '', label: 'All branches' },
+                      ...branchOptions.map((branch) => ({
+                        value: branch.id || branch._id,
+                        label: branch.name,
+                      })),
+                    ]}
+                  />
+                </label>
+                <label className={`${labelCls} sm:col-span-2 lg:col-span-2`}>
+                  Manager name/email
+                  <input
+                    className={inputCls}
+                    value={orgManagerQuery}
+                    onChange={(e) =>
+                      typeof setOrgManagerQuery === 'function' &&
+                      setOrgManagerQuery(e.target.value)
+                    }
+                    placeholder="e.g. madeel or gmail.com"
+                  />
+                </label>
+              </>
+            ) : null}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className={btnBase}
+              disabled={dashLoading}
+              onClick={onClearFilters}
+            >
+              Clear filters
+            </button>
+            <button
+              type="button"
+              className={btnBase}
+              disabled={dashLoading || exportCsvBusy}
+              onClick={() =>
+                typeof onExportCsv === 'function' ? void onExportCsv() : undefined
+              }
+            >
+              {exportCsvBusy ? 'Exporting…' : 'Export CSV'}
+            </button>
+          </div>
+          {dashError && (
+            <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+              {dashError}
+            </p>
+          )}
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            className={btnBase}
-            disabled={dashLoading}
-            onClick={onClearFilters}
-          >
-            Clear filters
-          </button>
-          <button
-            type="button"
-            className={btnBase}
-            disabled={dashLoading || exportCsvBusy}
-            onClick={() =>
-              typeof onExportCsv === 'function' ? void onExportCsv() : undefined
-            }
-          >
-            {exportCsvBusy ? 'Exporting…' : 'Export CSV'}
-          </button>
-        </div>
-        {dashError && (
-          <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+      ) : null}
+
+      <div className="p-4 sm:p-6">
+        {dashError && !isExpensesList && (
+          <p className="mb-3 text-sm font-medium text-red-600 dark:text-red-400">
             {dashError}
           </p>
         )}
-      </div>
-
-      <div className="p-4 sm:p-6">
         {dashEditSaveError && !dashDetailExpense && (
           <p className="mb-3 text-sm font-medium text-red-600 dark:text-red-400">
             {dashEditSaveError}

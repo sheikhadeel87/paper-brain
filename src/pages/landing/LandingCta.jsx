@@ -39,9 +39,12 @@
 // }
 
 import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/useAuth.js'
 import { btnBase, btnPrimary } from '../../lib/uiClasses.js'
 
 export function LandingCta() {
+  const { token } = useAuth()
+
   return (
     <section className="bg-zinc-100 px-4 py-16 dark:bg-zinc-900 sm:px-6 sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-10 rounded-[2rem] border border-zinc-200 bg-white px-6 py-10 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:grid-cols-[1fr_auto] md:gap-20 md:px-14 md:py-16">
@@ -61,26 +64,37 @@ export function LandingCta() {
 
         {/* Right: Action Area */}
         <div className="flex w-full flex-col gap-4 md:w-auto md:min-w-[200px]">
-          <Link
-            to="/register"
-            className={`${btnPrimary} flex h-12 items-center justify-center rounded-xl px-8 text-sm font-bold no-underline transition-transform active:scale-95`}
-          >
-            Create account
-          </Link>
-          <Link
-            to="/login"
-            className={`${btnBase} flex h-12 items-center justify-center rounded-xl px-8 text-sm font-bold no-underline transition-transform active:scale-95`}
-          >
-            Log in
-          </Link>
-          
-          {/* Enhanced Micro-copy */}
-          <div className="mt-1 flex items-center justify-center gap-1.5 opacity-80">
-            <div className="h-1 w-1 rounded-full bg-emerald-500" />
-            <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-              No credit card required
-            </p>
-          </div>
+          {token ? (
+            <Link
+              to="/dashboard"
+              className={`${btnPrimary} flex h-12 items-center justify-center rounded-xl px-8 text-sm font-bold no-underline transition-transform active:scale-95`}
+            >
+              Open dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/register"
+                className={`${btnPrimary} flex h-12 items-center justify-center rounded-xl px-8 text-sm font-bold no-underline transition-transform active:scale-95`}
+              >
+                Create account
+              </Link>
+              <Link
+                to="/login"
+                className={`${btnBase} flex h-12 items-center justify-center rounded-xl px-8 text-sm font-bold no-underline transition-transform active:scale-95`}
+              >
+                Log in
+              </Link>
+              
+              {/* Enhanced Micro-copy */}
+              <div className="mt-1 flex items-center justify-center gap-1.5 opacity-80">
+                <div className="h-1 w-1 rounded-full bg-emerald-500" />
+                <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                  No credit card required
+                </p>
+              </div>
+            </>
+          )}
         </div>
         
       </div>

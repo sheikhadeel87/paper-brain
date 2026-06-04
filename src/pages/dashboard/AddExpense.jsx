@@ -73,18 +73,13 @@ export function AddExpense({
 
   const receiptPreviewSlots = useMemo(() => {
     const n = queueUrls.length
-    const slots = []
-    for (let i = 0; i < 4; i++) {
-      if (n > 4) {
-        if (i < 3) slots.push({ kind: 'img', url: queueUrls[i], i })
-        else slots.push({ kind: 'more', url: queueUrls[3], extra: n - 4, i })
-      } else if (i < n) {
-        slots.push({ kind: 'img', url: queueUrls[i], i })
-      } else {
-        slots.push({ kind: 'empty', i })
-      }
+    if (n > 4) {
+      return [
+        ...queueUrls.slice(0, 3).map((url, i) => ({ kind: 'img', url, i })),
+        { kind: 'more', url: queueUrls[3], extra: n - 4, i: 3 },
+      ]
     }
-    return slots
+    return queueUrls.map((url, i) => ({ kind: 'img', url, i }))
   }, [queueUrls])
 
   const onReceiptDragOver = useCallback((ev) => {
@@ -112,10 +107,15 @@ export function AddExpense({
   const showUploadQueueCard =
     receiptBatchProgress &&
     (s || Boolean(receiptBatchProgress.queuePlaceholder))
+  const receiptPreviewGridClass =
+    queueUrls.length === 1 ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 gap-2'
   const batchPct =
     s && s.total > 0
       ? Math.round(((s.completed + s.failed) / s.total) * 100)
       : 0
+  const queueProgressLabel = s
+    ? `${s.completed + s.failed} of ${s.total} receipt${s.total === 1 ? '' : 's'} finished`
+    : ''
 
   const jobs = receiptBatchProgress?.mergedJobs ?? []
   const waiting = jobs.filter((j) =>
@@ -142,28 +142,44 @@ export function AddExpense({
     const label = j.fileName || j.id
     const isFailed = j.state === 'failed'
     const stateLabel =
-      j.state === 'waiting-children' ? 'queued' : j.state
+      j.state === 'waiting-children'
+        ? 'Waiting'
+        : j.state === 'active' || j.state === 'prioritized'
+          ? 'Processing'
+          : j.state === 'completed' || j.state === 'missing'
+            ? 'Completed'
+            : j.state === 'failed'
+              ? 'Failed'
+              : j.state
+    const statusClass = isFailed
+      ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300'
+      : j.state === 'completed' || j.state === 'missing'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300'
+        : j.state === 'active' || j.state === 'prioritized'
+          ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300'
+          : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300'
     return (
       <li
         key={j.id}
-        className="border-b border-amber-200/50 py-1 text-[10px] last:border-0 dark:border-amber-900/35"
+        className="rounded-xl border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium text-amber-950 dark:text-amber-50">
-            {label}
-          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-zinc-900 dark:text-zinc-50">
+              {label}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-zinc-500 dark:text-zinc-400">
+              Receipt upload job
+            </span>
+          </div>
           <span
-            className={
-              isFailed
-                ? 'shrink-0 font-semibold uppercase tracking-wide text-[9px] text-red-800 dark:text-red-300'
-                : 'shrink-0 font-medium uppercase tracking-wide text-[9px] text-amber-900/80 dark:text-amber-200/80'
-            }
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusClass}`}
           >
             {stateLabel}
           </span>
         </div>
         {j.failedReason ? (
-          <p className="mt-0.5 mb-0 line-clamp-3 text-[9px] leading-snug text-red-700 dark:text-red-300">
+          <p className="mt-2 mb-0 line-clamp-3 rounded-lg bg-red-50 px-2 py-1 text-[11px] leading-snug text-red-700 dark:bg-red-950/30 dark:text-red-300">
             {j.failedReason}
           </p>
         ) : null}
@@ -651,21 +667,12 @@ export function AddExpense({
               Receipt
             </h2>
             <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-              Preview while you edit. Reject / new upload clears the grid.
+              Preview while you edit. Reject / new upload clears the preview.
             </p>
             {queueUrls.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 grid-rows-2 gap-2">
+                <div className={receiptPreviewGridClass}>
                   {receiptPreviewSlots.map((slot) => {
-                    if (slot.kind === 'empty') {
-                      return (
-                        <div
-                          key={`empty-${slot.i}`}
-                          className="aspect-square w-full rounded-lg border-2 border-dashed border-zinc-200 bg-zinc-100/40 dark:border-zinc-600 dark:bg-zinc-800/30"
-                          aria-hidden
-                        />
-                      )
-                    }
                     if (slot.kind === 'more') {
                       return (
                         <button
@@ -768,104 +775,125 @@ export function AddExpense({
 
           {showUploadQueueCard ? (
             <div
-              className={`${cardCls} border-amber-200 bg-amber-50/90 p-2.5 text-left text-amber-950 sm:p-2.5 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-100`}
+              className={`${cardCls} overflow-hidden border-amber-200 bg-gradient-to-br from-amber-50 via-white to-violet-50 p-0 text-left text-zinc-950 dark:border-amber-800/50 dark:from-amber-950/25 dark:via-zinc-900 dark:to-violet-950/20 dark:text-zinc-50`}
               role="status"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="m-0 text-xs font-semibold">Upload queue</p>
-                  <p className="mt-0.5 mb-0 text-[10px] leading-snug text-amber-900/80 dark:text-amber-200/75">
-                    One image at a time on the server — totals update live.
-                  </p>
+              <div className="border-b border-amber-200/60 bg-white/70 p-4 dark:border-amber-900/40 dark:bg-zinc-950/35">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="m-0 text-xs font-bold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                      Receipt upload queue
+                    </p>
+                    <h3 className="mt-1 text-lg font-bold text-zinc-950 dark:text-zinc-50">
+                      Processing one receipt at a time
+                    </h3>
+                    <p className="mt-1 mb-0 text-sm leading-5 text-zinc-600 dark:text-zinc-300">
+                      Keep this card visible to follow every file from queued to completed.
+                    </p>
+                  </div>
+                  {typeof receiptBatchProgress.onDismissQueue === 'function' ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 shadow-sm transition hover:bg-amber-50 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-100 dark:hover:bg-zinc-800"
+                      onClick={() => receiptBatchProgress.onDismissQueue()}
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
                 </div>
-                {typeof receiptBatchProgress.onDismissQueue === 'function' ? (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-md border border-amber-300/80 bg-white px-2 py-0.5 text-[10px] font-medium text-amber-950 hover:bg-amber-100/80 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-100 dark:hover:bg-zinc-800"
-                    onClick={() => receiptBatchProgress.onDismissQueue()}
-                  >
-                    Dismiss
-                  </button>
+              </div>
+
+              <div className="p-4">
+                {queueSending ? (
+                  <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-900/50 dark:bg-zinc-900">
+                    <p className="m-0 flex items-center gap-3 text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      <InlineSpinner className="h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
+                      Sending files to the server queue...
+                    </p>
+                    <p className="mt-2 mb-0 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                      Progress numbers appear as soon as the server registers the jobs.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <p className="m-0 text-4xl font-black tabular-nums text-zinc-950 dark:text-zinc-50">
+                          {batchPct}%
+                        </p>
+                        <p className="mt-1 mb-0 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                          {queueProgressLabel}
+                        </p>
+                      </div>
+                      {receiptBatchProgress.idle ? (
+                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                          Queue idle
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                          Live
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      className="mt-4 h-4 overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-800"
+                      aria-label={`Upload queue ${batchPct}% complete`}
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={batchPct}
+                    >
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-500 shadow-sm transition-[width] duration-500"
+                        style={{ width: `${batchPct}%` }}
+                      />
+                    </div>
+
+                    <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {[
+                        ['Total', s.total, 'text-zinc-900 dark:text-zinc-50'],
+                        ['Done', s.completed, 'text-emerald-700 dark:text-emerald-300'],
+                        ['Running', s.processing, 'text-violet-700 dark:text-violet-300'],
+                        ['Waiting', s.waiting, 'text-amber-700 dark:text-amber-300'],
+                        ['Failed', s.failed, 'text-red-700 dark:text-red-300'],
+                      ].map(([label, value, valueClass]) => (
+                        <div
+                          key={label}
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        >
+                          <dt className="text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                            {label}
+                          </dt>
+                          <dd className={`m-0 mt-1 text-xl font-black tabular-nums ${valueClass}`}>
+                            {value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </>
+                )}
+
+                {!queueSending ? (
+                  <div className="mt-4 space-y-4">
+                    {[
+                      ['failed', 'Needs attention', failed],
+                      ['processing', 'Processing now', processing],
+                      ['waiting', 'Waiting in line', waiting],
+                      ['completed', 'Completed receipts', completed],
+                    ].map(([id, title, items]) =>
+                      items.length === 0 ? null : (
+                        <div key={id}>
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                            {title}
+                          </p>
+                          <ul className="m-0 list-none space-y-2 p-0">{items.map(queueJobRow)}</ul>
+                        </div>
+                      ),
+                    )}
+                  </div>
                 ) : null}
               </div>
-              {queueSending ? (
-                <p className="mt-2 mb-0 flex items-center gap-2 text-[11px] font-medium text-amber-900 dark:text-amber-100">
-                  <InlineSpinner className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" />
-                  Sending to the server queue… counts appear as soon as jobs are registered.
-                </p>
-              ) : (
-                <>
-                  <dl className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px]">
-                    <div>
-                      <dt className="text-amber-800/75 dark:text-amber-300/75">Tot</dt>
-                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.total}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-amber-800/75 dark:text-amber-300/75">Done</dt>
-                      <dd className="m-0 text-xs font-semibold tabular-nums text-emerald-800 dark:text-emerald-300">
-                        {s.completed}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-amber-800/75 dark:text-amber-300/75">Run</dt>
-                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.processing}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-amber-800/75 dark:text-amber-300/75">Wait</dt>
-                      <dd className="m-0 text-xs font-semibold tabular-nums">{s.waiting}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-amber-800/75 dark:text-amber-300/75">Fail</dt>
-                      <dd className="m-0 text-xs font-semibold tabular-nums text-red-800 dark:text-red-300">
-                        {s.failed}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div
-                    className="mt-2 h-1 overflow-hidden rounded-full bg-amber-200/80 dark:bg-amber-900/50"
-                    aria-hidden
-                  >
-                    <div
-                      className="h-1 rounded-full bg-amber-600 transition-[width] duration-300 dark:bg-amber-400"
-                      style={{ width: `${batchPct}%` }}
-                    />
-                  </div>
-                </>
-              )}
-              {!queueSending && receiptBatchProgress.idle ? (
-                <p className="mt-1.5 mb-0 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
-                  Session queue idle — add more anytime.
-                </p>
-              ) : null}
-              {!queueSending ? (
-                <div
-                  className={`mt-2 space-y-2 overflow-y-auto text-left ${
-                    failed.length > 0 ? 'max-h-48' : 'max-h-28'
-                  }`}
-                >
-                  {[
-                    ['failed', 'Failed', true, failed],
-                    ['processing', 'Processing', false, processing],
-                    ['waiting', 'Waiting', false, waiting],
-                    ['completed', 'Completed', false, completed],
-                  ].map(([id, title, isFailed, items]) =>
-                    items.length === 0 ? null : (
-                      <div key={id}>
-                        <p
-                          className={
-                            isFailed
-                              ? 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-800/90 dark:text-red-300/90'
-                              : 'mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-900/90 dark:text-amber-200/90'
-                          }
-                        >
-                          {title}
-                        </p>
-                        <ul className="m-0 list-none p-0">{items.map(queueJobRow)}</ul>
-                      </div>
-                    ),
-                  )}
-                </div>
-              ) : null}
             </div>
           ) : null}
         </aside>

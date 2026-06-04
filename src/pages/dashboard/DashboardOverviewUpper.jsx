@@ -212,8 +212,13 @@ export function DashboardOverviewUpper({ dashKpis, dashRows, dashTotalCount }) {
             <CurrencyDonut slices={spendingSlices} />
             <ul className="m-0 w-full max-w-xs list-none space-y-2.5 p-0 text-sm">
               {spendingSlices.length === 0 ? (
-                <li className="text-zinc-500 dark:text-zinc-400">
-                  Apply filters with matching expenses to see the chart.
+                <li className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-400">
+                  <span className="block font-medium text-zinc-700 dark:text-zinc-200">
+                    No spending yet
+                  </span>
+                  <span className="mt-1 block text-sm">
+                    Upload your first receipt to build this breakdown.
+                  </span>
                 </li>
               ) : (
                 spendingSlices.map((s) => {

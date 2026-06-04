@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, MapPin, Plus, X } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { ArrowDown, ArrowUp, Building2, MapPin, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../context/useAuth.js'
 import { btnBase, btnPrimary, cardCls, inputCls, labelCls } from '../../lib/uiClasses.js'
 
@@ -29,19 +30,40 @@ export function BranchesPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingBranch, setEditingBranch] = useState(null)
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [deleteBusyId, setDeleteBusyId] = useState('')
+  const [branchSearch, setBranchSearch] = useState('')
+  const [branchSortDirection, setBranchSortDirection] = useState('asc')
   const isAdmin = String(user?.role || '').toUpperCase() === 'ADMIN'
+
+  const filteredBranches = useMemo(() => {
+    const q = branchSearch.trim().toLowerCase()
+    if (!q) return branches
+    return branches.filter((branch) => {
+      const nameValue = String(branch?.name || '').toLowerCase()
+      const locationValue = String(branch?.location || '').toLowerCase()
+      return nameValue.includes(q) || locationValue.includes(q)
+    })
+  }, [branchSearch, branches])
 
   const sortedBranches = useMemo(
     () =>
-      [...branches].sort((a, b) =>
-        String(a?.name || '').localeCompare(String(b?.name || '')),
-      ),
-    [branches],
+      [...filteredBranches].sort((a, b) => {
+        const result = String(a?.name || '').localeCompare(
+          String(b?.name || ''),
+          undefined,
+          { sensitivity: 'base' },
+        )
+        return branchSortDirection === 'asc' ? result : -result
+      }),
+    [branchSortDirection, filteredBranches],
   )
+
+  const BranchSortIcon = branchSortDirection === 'asc' ? ArrowUp : ArrowDown
 
   const loadBranches = useCallback(async () => {
     if (!isAdmin) {
@@ -78,8 +100,17 @@ export function BranchesPage() {
   }, [modalOpen])
 
   function openModal() {
+    setEditingBranch(null)
     setName('')
     setLocation('')
+    setSaveError('')
+    setModalOpen(true)
+  }
+
+  function openEditModal(branch) {
+    setEditingBranch(branch)
+    setName(String(branch?.name || ''))
+    setLocation(String(branch?.location || ''))
     setSaveError('')
     setModalOpen(true)
   }
@@ -87,12 +118,14 @@ export function BranchesPage() {
   function closeModal() {
     if (saving) return
     setModalOpen(false)
+    setEditingBranch(null)
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     const cleanName = name.trim()
     const cleanLocation = location.trim()
+    const editId = branchId(editingBranch)
     if (!cleanName) {
       setSaveError('Branch name is required.')
       return
@@ -101,8 +134,8 @@ export function BranchesPage() {
     setSaving(true)
     setSaveError('')
     try {
-      const response = await authFetch('/api/branches', {
-        method: 'POST',
+      const response = await authFetch(editId ? `/api/branches/${encodeURIComponent(editId)}` : '/api/branches', {
+        method: editId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: cleanName,
@@ -111,14 +144,40 @@ export function BranchesPage() {
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok || data.success === false) {
-        throw new Error(data.error || 'Could not create branch.')
+        throw new Error(data.error || (editId ? 'Could not update branch.' : 'Could not create branch.'))
       }
       setModalOpen(false)
+      setEditingBranch(null)
+      toast.success(editId ? 'Branch updated.' : 'Branch created.')
       await loadBranches()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Could not create branch.')
+      setSaveError(err instanceof Error ? err.message : editId ? 'Could not update branch.' : 'Could not create branch.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteBranch(branch) {
+    const id = branchId(branch)
+    if (!id || deleteBusyId) return
+    const ok = window.confirm(`Delete "${branch.name}" branch?`)
+    if (!ok) return
+
+    setDeleteBusyId(id)
+    try {
+      const response = await authFetch(`/api/branches/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || 'Could not delete branch.')
+      }
+      toast.success('Branch deleted.')
+      await loadBranches()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not delete branch.')
+    } finally {
+      setDeleteBusyId('')
     }
   }
 
@@ -171,7 +230,7 @@ export function BranchesPage() {
       ) : null}
 
       <section className={cardCls}>
-        <div className="flex flex-col gap-1 border-b border-zinc-200 pb-4 dark:border-zinc-800 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
               Branch directory
@@ -179,9 +238,23 @@ export function BranchesPage() {
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
               {loading
                 ? 'Loading branches...'
-                : `${sortedBranches.length} branch${sortedBranches.length === 1 ? '' : 'es'} configured`}
+                : `${sortedBranches.length} of ${branches.length} branch${branches.length === 1 ? '' : 'es'} shown`}
             </p>
           </div>
+          <label className="relative w-full lg:max-w-[13rem]">
+            <span className="sr-only">Search branches</span>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+              aria-hidden="true"
+            />
+            <input
+              className={`${inputCls} pl-9`}
+              value={branchSearch}
+              onChange={(event) => setBranchSearch(event.target.value)}
+              placeholder="Search branch or location"
+              type="search"
+            />
+          </label>
         </div>
 
         {loading ? (
@@ -194,19 +267,23 @@ export function BranchesPage() {
               <Building2 className="h-6 w-6" aria-hidden="true" />
             </div>
             <h3 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-              No branches yet
+              {branches.length === 0 ? 'No branches yet' : 'No branches found'}
             </h3>
             <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-              Add your first branch to start assigning uploads and managers to a location.
+              {branches.length === 0
+                ? 'Add your first branch to start assigning uploads and managers to a location.'
+                : 'Try a different branch name or location.'}
             </p>
-            <button
-              type="button"
-              className={`${btnPrimary} mt-5 gap-2`}
-              onClick={openModal}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add Branch
-            </button>
+            {branches.length === 0 ? (
+              <button
+                type="button"
+                className={`${btnPrimary} mt-5 gap-2`}
+                onClick={openModal}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add Branch
+              </button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -231,6 +308,23 @@ export function BranchesPage() {
                       <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
                         Created {formatCreatedAt(branch.createdAt)}
                       </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={`${btnBase} min-h-0 px-3 py-1.5 text-xs`}
+                          onClick={() => openEditModal(branch)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-0 items-center justify-center rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:bg-zinc-900 dark:text-red-400 dark:hover:bg-red-950/40"
+                          disabled={deleteBusyId === branchId(branch)}
+                          onClick={() => void deleteBranch(branch)}
+                        >
+                          {deleteBusyId === branchId(branch) ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -242,13 +336,29 @@ export function BranchesPage() {
                 <thead className="bg-zinc-50 dark:bg-zinc-950/70">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Branch
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-md text-xs font-semibold uppercase tracking-wide text-zinc-500 transition hover:text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500/40 dark:text-zinc-400 dark:hover:text-violet-300"
+                        onClick={() =>
+                          setBranchSortDirection((direction) =>
+                            direction === 'asc' ? 'desc' : 'asc',
+                          )
+                        }
+                        aria-label={`Sort branch names ${branchSortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                        title={`Sort ${branchSortDirection === 'asc' ? 'Z-A' : 'A-Z'}`}
+                      >
+                        <BranchSortIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        Branch
+                      </button>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Location
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Created
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -270,6 +380,27 @@ export function BranchesPage() {
                       </td>
                       <td className="px-4 py-4 text-zinc-500 dark:text-zinc-400">
                         {formatCreatedAt(branch.createdAt)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                            onClick={() => openEditModal(branch)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/40"
+                            disabled={deleteBusyId === branchId(branch)}
+                            onClick={() => void deleteBranch(branch)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            {deleteBusyId === branchId(branch) ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -300,10 +431,12 @@ export function BranchesPage() {
                   id="add-branch-title"
                   className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
                 >
-                  Add Branch
+                  {editingBranch ? 'Edit Branch' : 'Add Branch'}
                 </h2>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  Create a location for your organization.
+                  {editingBranch
+                    ? 'Update this organization location.'
+                    : 'Create a location for your organization.'}
                 </p>
               </div>
               <button
@@ -364,7 +497,13 @@ export function BranchesPage() {
                 className={`${btnPrimary} w-full sm:w-auto`}
                 disabled={saving}
               >
-                {saving ? 'Creating...' : 'Create Branch'}
+                {saving
+                  ? editingBranch
+                    ? 'Saving...'
+                    : 'Creating...'
+                  : editingBranch
+                    ? 'Save Branch'
+                    : 'Create Branch'}
               </button>
             </div>
           </form>

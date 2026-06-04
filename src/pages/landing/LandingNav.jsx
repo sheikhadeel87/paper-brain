@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { BrandMark } from '../../components/BrandMark.jsx'
 import { ThemeToggle } from '../../components/ThemeToggle.jsx'
+import { useAuth } from '../../context/useAuth.js'
 import { btnBase, btnPrimary } from '../../lib/uiClasses.js'
 
 // const navLinkCls =
@@ -56,6 +57,8 @@ const navLinkCls =
   'group relative py-1 text-sm font-medium text-zinc-600 transition-all hover:text-violet-700 hover:animate-glow-pulse dark:text-zinc-400 dark:hover:text-violet-300'
 
 export function LandingNav() {
+  const { logout, token } = useAuth()
+
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6">
@@ -89,19 +92,37 @@ export function LandingNav() {
             <span>About</span>
             <span className="absolute bottom-0 left-1/2 h-[2px] w-0 -translate-x-1/2 bg-violet-600 transition-all duration-300 group-hover:w-full dark:bg-violet-400"></span>
           </a>
+          {token ? (
+            <Link className={navLinkCls} to="/dashboard">
+              <span>Dashboard</span>
+              <span className="absolute bottom-0 left-1/2 h-[2px] w-0 -translate-x-1/2 bg-violet-600 transition-all duration-300 group-hover:w-full dark:bg-violet-400"></span>
+            </Link>
+          ) : null}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
           <ThemeToggle compact />
-          <Link to="/login" className={`${btnBase} px-3 py-2 text-sm no-underline`}>
-            Log in
-          </Link>
-          <Link
-            to="/register"
-            className={`${btnPrimary} px-3 py-2 text-sm no-underline`}
-          >
-            Get started
-          </Link>
+          {token ? (
+            <button
+              type="button"
+              className={`${btnPrimary} px-3 py-2 text-sm no-underline`}
+              onClick={logout}
+            >
+              Logout
+            </button>
+          ) : (
+            <>
+              <Link to="/login" className={`${btnBase} px-3 py-2 text-sm no-underline`}>
+                Log in
+              </Link>
+              <Link
+                to="/register"
+                className={`${btnPrimary} px-3 py-2 text-sm no-underline`}
+              >
+                Get started
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
