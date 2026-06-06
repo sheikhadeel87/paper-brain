@@ -86,13 +86,15 @@ export function ReceiptHistoryTable({
                     key={ex._id || ex.id || `recent-${i}`}
                     className="border-b border-zinc-100 last:border-0 dark:border-zinc-800"
                   >
-                    <td className="max-w-[14rem] truncate px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">
-                      {fd.vendor || '—'}
+                    <td className="max-w-[14rem] px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                      <div className="truncate">{fd.vendor || '—'}</div>
                       {duplicate ? (
-                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-                          Possible duplicate
-                          {duplicateConfidence ? ` ${Math.round(Number(duplicateConfidence))}%` : ''}
-                        </span>
+                        <div className="mt-1">
+                          <span className="inline-flex max-w-full rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                            Possible duplicate
+                            {duplicateConfidence ? ` ${Math.round(Number(duplicateConfidence))}%` : ''}
+                          </span>
+                        </div>
                       ) : null}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-zinc-900 dark:text-zinc-100">
